@@ -1,10 +1,12 @@
-import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=04';
-import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak} from './state.mjs?v=04';
+import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=05';
+import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak,validDay,validResult,changeEntry,updatePlan,inviteJoin,friendFinished,firstPrerequisite} from './state.mjs?v=05';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
 import {stages,questionOptions,helpTopics,coachReply,blocks,experiments,runBlocks} from './learning.mjs';
 import {studios,studioCell,checkStudio,playBeat} from './studios.mjs';
-import {languages,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup} from './play.mjs';
+import {languages,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,searchKey,matchingGear} from './play.mjs';
+import {preparePhoto,putPhoto,deletePhoto,showPhotos} from './photos.mjs';
+import {roomSupported,callRoom,roomToken,knownRoomToken} from './rooms.mjs';
 
 const main=document.querySelector('#main');
 const nav=document.querySelector('#nav');
@@ -14,11 +16,17 @@ let state=load(localStorage);
 let filter={group:'all',query:'',place:'',gear:'',time:'',stage:''};
 let toastTimer;
 let coachHistory=[];
-let language='es';
-const labDrafts={};
+let language=Object.hasOwn(languages,state.language)?state.language:'es';
+let importedRank='';
+let onlineRooms=false;
+let roomTimer;
+let roomLoading=false;
+let roomWriting=false;
+let currentRoom=null;
+let labDrafts=structuredClone(state.labDrafts);
 const labRuns={};
 const quizReplies={};
-const studioDrafts={};
+let studioDrafts=structuredClone(state.studioDrafts);
 const studioReplies={};
 const featured=['fussball','fotografie','kochen','zeichnen','wandern','tennis'];
 const groupNames=Object.fromEntries(groups.map(([id,name])=>[id,name]));
@@ -39,6 +47,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&
 const link=(label,hash,kind='button')=>`<a class="${kind}" href="#${hash}">${label}</a>`;
 const btn=(label,action,value='',kind='button')=>`<button type="button" class="${kind}" data-action="${action}" data-value="${esc(value)}">${label}</button>`;
 const chip=text=>`<span class="chip">${text}</span>`;
+const questTime=quest=>quest.minutes+' Min.'+(quest.elapsedDays?' insgesamt · über '+quest.elapsedDays+' Tage':'');
 const dateLabel=(day,options={weekday:'short',day:'numeric',month:'short'})=>new Intl.DateTimeFormat('de-DE',options).format(new Date(day+'T12:00:00'));
 const named=()=>state.name.trim()||'Du';
 const pointLabel=points=>points+' '+(points===1?'Punkt':'Punkte');
@@ -86,26 +95,28 @@ function weekCard() {
   }).join('');
   const plans=state.plans.filter(plan=>plan.day<=shift(week,6)&&!plan.done).sort((a,b)=>a.day.localeCompare(b.day)).slice(0,3);
   return `<section class="surface week"><div class="card-heading"><div class="tile-icon lilac">${svg('calendar')}</div><div><h2>Deine Woche</h2><p>${weekRange(week)}</p></div></div>
-    <div class="days">${marks}</div><div class="progress-label"><strong>${days.size} von ${goal} Tagen aktiv</strong><span>${Math.round(Math.min(1,days.size/goal)*100)} %</span></div>
+    <div class="days">${marks}</div><div class="progress-label"><strong>${days.size} von ${goal} Tagen mit Praxisquest</strong><span>${Math.round(Math.min(1,days.size/goal)*100)} %</span></div>
     <progress value="${Math.min(days.size,goal)}" max="${goal}">${days.size}</progress>
     ${plans.length?`<div class="mini-plans">${plans.map(plan=>`<div><a href="#quest/${plan.quest}">${dateLabel(plan.day)} · ${quests[plan.quest].title}</a>${btn('Verschieben','reschedule',plan.id,'text-button')}</div>`).join('')}</div>`:''}
     ${link('Woche planen','woche','button secondary full')}</section>`;
 }
 function streakCard() {
   const streak=dailyStreak(state);
-  return `<section class="surface streak-card"><div class="tile-icon ember">${svg('flame')}</div><div><h2>${streak.running} ${streak.running===1?'Tag':'Tage'} in Folge</h2><p>${streak.doneToday?'Heute geschafft.':streak.running?'Eine Quest oder App-Übung hält deine Serie.':'Schließe eine Quest oder App-Übung ab.'}</p></div></section>`;
+  return `<section class="surface streak-card"><div class="tile-icon ember">${svg('flame')}</div><div><h2>${streak.running} ${streak.running===1?'Tag':'Tage'} in Folge</h2><p>${streak.doneToday?'Heute geschafft.':streak.running?'Eine Quest, App-Übung oder Wiederholung hält deine Tagesstreak.':'Schließe eine Quest oder App-Übung ab.'}</p></div></section>`;
 }
 function todayPage() {
   const active=state.active.map(id=>byHobby[id]).filter(Boolean);
   const suggestion=recommend(state);
   const recommended=active.length?suggestion?.quest:undefined;
   const suggested=suggestion?.hobby;
+  const newSuggestion=recommended&&!state.active.includes(suggested.id);
   const challenge=featuredChallenge();
   const heroLink=recommended?'quest/'+recommended.id:'entdecken';
   return `<div class="dashboard"><div class="dash-main"><section class="hero mountain">
     <div class="hero-content"><p class="eyebrow"><span>✳</span> ${recommended?'DEIN NÄCHSTER SCHRITT':'DEIN ABENTEUER BEGINNT'}</p><h1>${recommended?esc(recommended.title):'Raus aus dem Alltag.<br><em>Rein ins Abenteuer.</em>'}</h1>
-    <p>${recommended?esc(suggested.name+' · '+recommended.minutes+' Min. · '+recommended.steps[0]):'Entdecke neue Hobbys, meistere echte Quests und sammle Erlebnisse.'}</p>
-    ${link(recommended?'Quest fortsetzen':'Hobbys entdecken',heroLink,'button primary')}</div><div class="hero-place"><span>✦</span> ${recommended?'DEIN LERNPFAD':'ECHTE ERLEBNISSE'}</div></section>
+    <p>${recommended?esc(suggested.name+' · '+questTime(recommended)+' · '+recommended.steps[0]):'Entdecke neue Hobbys, meistere echte Quests und sammle Erlebnisse.'}</p>
+    ${newSuggestion?'<p>Aus deinen gemerkten Hobbys passt aktuell keine offene Quest zu deinen Einstellungen. Hier ist etwas Neues zum Ausprobieren.</p>':''}
+    ${link(recommended?(newSuggestion?'Vorschlag ansehen':'Quest fortsetzen'):'Hobbys entdecken',heroLink,'button primary')}</div><div class="hero-place"><span>✦</span> ${recommended?'DEIN LERNPFAD':'ECHTE ERLEBNISSE'}</div></section>
     <section class="bubble-row" aria-label="Schnellauswahl">${btn(svg('time')+' 10 Minuten','quick','time','pill')}${btn('⌂ &nbsp; Zu Hause','quick','home','pill')}${btn('✦ &nbsp; Etwas Neues','quick','new','pill')}</section>
     <section class="section"><div class="section-title"><div><p class="eyebrow"><span>✦</span> HOBBY-KATALOG</p><h2>${active.length?'Deine Hobbys':'Was willst du heute machen?'}</h2></div>${link('Alle '+hobbies.length+' Hobbys','entdecken','text-button')}</div>
     <div class="hobby-grid">${(active.length?active.slice(0,3):featured.slice(0,3).map(id=>byHobby[id])).map(hobby=>pathCard(hobby,{image:true})).join('')}</div></section>
@@ -120,11 +131,20 @@ function catalogResults() {
   if(filter.time||filter.place||filter.gear||filter.stage) {
     const matches=hobbies.flatMap(hobby=>hobby.quests.filter(quest=>questMatches(hobby,quest,filter,state)).map(quest=>({hobby,quest})));
     return `<p class="result-count" role="status">${matches.length} direkt spielbare ${matches.length===1?'Quest':'Quests'}</p>
-    ${matches.length?`<div class="hobby-grid catalog-grid">${matches.map(({hobby,quest})=>`<a class="hobby-card surface" href="#quest/${quest.id}"><div class="card-art ${hobby.group}"><span>${hobby.icon}</span></div><div class="card-content"><p class="eyebrow">${hobby.name}</p><h3>${quest.title}</h3><div class="card-meta"><span>${quest.minutes} Min.</span><span>${quest.type}</span></div></div></a>`).join('')}</div>`:empty('Derzeit passt keine freigeschaltete Quest. Passe einen Filter an oder spiele einen Einstieg.') }`;
+    ${matches.length?`<div class="hobby-grid catalog-grid">${matches.map(({hobby,quest})=>`<a class="hobby-card surface" href="#quest/${quest.id}"><div class="card-art ${hobby.group}"><span>${hobby.icon}</span></div><div class="card-content"><p class="eyebrow">${hobby.name}</p><h3>${quest.title}</h3><div class="card-meta"><span>${questTime(quest)}</span><span>${quest.elapsedDays?'Heute starten':quest.type}</span></div></div></a>`).join('')}</div>`:empty('Keine freigeschaltete Quest passt zu den Filtern und deiner gespeicherten Ausrüstung. Passe sie im Lernpfad an oder wähle ein anderes Hobby.') }`;
   }
-  const query=filter.query.trim().toLocaleLowerCase('de');
-  const matches=hobbies.filter(hobby=>(filter.group==='all'||hobby.group===filter.group)&&(!query||[hobby.name,hobby.skill,groupNames[hobby.group],hobby.materials,...hobby.quests.map(quest=>quest.title)].join(' ').toLocaleLowerCase('de').includes(query)));
-  return `<p class="result-count" role="status">${matches.length} ${matches.length===1?'Hobby':'Hobbys'}</p>${matches.length?`<div class="hobby-grid catalog-grid">${matches.map(hobby=>pathCard(hobby)).join('')}</div>`:empty('Keine passenden Hobbys. Ändere einen Filter oder suche nach einem anderen Begriff.') }`;
+  const query=searchKey(filter.query);
+  const matches=hobbies.filter(hobby=>(filter.group==='all'||hobby.group===filter.group)&&(!query||searchKey([hobby.name,hobby.skill,groupNames[hobby.group],hobby.materials,...hobby.quests.map(quest=>quest.title)].join(' ')).includes(query)));
+  return `<p class="result-count" role="status">${matches.length} ${matches.length===1?'Hobby':'Hobbys'}</p>${matches.length?`<div class="hobby-grid catalog-grid">${matches.map(hobby=>pathCard(hobby)).join('')}</div>`:empty('Keine passenden Hobbys. Ändere einen Filter oder suche nach einem anderen Begriff.')+searchSuggestions(query) }`;
+}
+function searchSuggestions(query) {
+  if(query.length<4||query.length>36) return '';
+  const omissions=new Set(Array.from(query,(_,i)=>query.slice(0,i)+query.slice(i+1)));
+  omissions.add(query);
+  const options=hobbies.filter(hobby=>searchKey(hobby.name).split(/[\s&-]+/).some(word=>
+    omissions.has(word)||Array.from(word,(_,i)=>word.slice(0,i)+word.slice(i+1)).some(part=>omissions.has(part))
+  )).slice(0,3);
+  return options.length?`<p>Meintest du eines davon?</p><div class="actions">${options.map(hobby=>link(hobby.name,'pfad/'+hobby.id,'button secondary')).join('')}</div>`:'';
 }
 function discoverPage() {
   return `${titleBlock('ENTDECKEN','Finde dein nächstes Hobby.','Wähle etwas, das in deinen Tag passt. Jede Aktivität beginnt mit einer machbaren Quest.')}
@@ -140,6 +160,7 @@ function pathPage(id) {
   const active=state.active.includes(id);
   const hits=hobby.quests.filter(quest=>completed(state,quest.id)).length;
   const mastered=Object.hasOwn(state.practice,'quiz-'+id);
+  const skills=[...new Set(hobby.quests.map(quest=>quest.skill).filter(Boolean))];
   return `<p>${link('Hobby-Katalog','entdecken','text-button')}</p><div class="path-banner surface ${hobby.group}"><span class="path-emoji">${hobby.icon}</span><div><p class="eyebrow">${groupNames[hobby.group]}</p><h1>${hobby.name}</h1><p>${hobby.skill} · Level ${level(state,hobby)}</p></div>${btn(active?'Aus meinen Hobbys entfernen':'Hobby merken','active',id,'button secondary')}</div>
   <div class="academy-layout section">
     <div>
@@ -156,7 +177,7 @@ function pathPage(id) {
           <div class="academy-body"><div class="stage-heading"><h3>${label}</h3><span>${cleared?'Erreicht':unlocked?(isNext?'Als Nächstes':'Freigeschaltet'):'Gesperrt'}</span></div>
           <div class="station-options">${station.map(quest=>{
             const done=completed(state,quest.id), open=unlocks(state,quest);
-            return `<article class="surface path-body"><p class="eyebrow">${quest.minutes} Min. · +${quest.xp} XP</p><h4>${quest.title}</h4><p>${quest.result}</p>
+            return `<article class="surface path-body"><p class="eyebrow">${questTime(quest)} · +${quest.xp} XP</p><h4>${quest.title}</h4><p>${quest.skill?quest.skill+" · ":""}${quest.result}</p>${!matchingGear(state,hobby,quest)?"<p><small>Benötigt Ausrüstung. Prüfe die Materialliste vor dem Start.</small></p>":""}
             ${open?link(done?'Erneut üben':quest.stage===1?'Erste Quest starten':'Quest starten','quest/'+quest.id,'button '+(quest===next?'primary':'secondary')):`<small>${quest.any?'Schließe eine der Trainingsquests ab.':'Schließe die vorherige Etappe ab.'}</small>`}</article>`;
           }).join('')}</div></div></li>`;
       }).join('')}</ol></section>
@@ -166,6 +187,10 @@ function pathPage(id) {
         ${id==='scratch'?`<h3>Scratch-Blocklabor</h3><p>Drei interaktive Aufgaben zu Ereignissen, Bewegung und Punkten.</p>${link('Blocklabor öffnen','labor','button secondary')}`:''}
         ${Object.hasOwn(studios,id)?`<h3>${studios[id].title}</h3><p>Probier die Technik direkt aus und hol dir Rückmeldung.</p>${link('Übungsstudio öffnen','studio/'+id,'button secondary')}`:''}</section>
       <section class="surface utility"><h2>Was du brauchst</h2><p>${esc(hobby.materials)}</p><h3>Wenn du hängen bleibst</h3><p>${lesson.trouble}</p>${link('Lerncoach fragen','hilfe/'+id,'text-button')}${hobbyPreferences(hobby)}</section>
+      ${skills.length?`<section class="surface utility"><h2>Deine Fähigkeiten</h2><ul class="levels">${skills.map(skill=>{
+        const tasks=hobby.quests.filter(quest=>quest.skill===skill);
+        return `<li><span>${skill}</span><strong>${tasks.filter(quest=>completed(state,quest.id)).length} / ${tasks.length}</strong></li>`;
+      }).join('')}</ul></section>`:''}
       ${resourceList(id)}
     </aside>
   </div>`;
@@ -188,13 +213,16 @@ function questPage(id, inviteCode='') {
   const hobby=byHobby[quest.hobby];
   const locked=!unlocks(state,quest);
   const planned=state.invites.find(invite=>invite.code===inviteCode&&invite.quest===id);
+  const preparation=state.invites.find(invite=>invite.code===inviteCode&&!invite.done&&invite.quest!==id);
+  const prerequisite=locked?firstPrerequisite(state,quest):null;
   if(quest.type==='Challenge'&&!planned) return challengePage(id);
   return `<p>${link('Lernpfad ansehen','pfad/'+hobby.id,'text-button')}</p>${titleBlock(hobby.name+' · '+(stages[quest.stage-1]||quest.type),quest.title,quest.result)}
-  ${planned?`<div class="notice">Gemeinsame Quest für ${dateLabel(planned.day).replace(/\.$/,'')}. ${planned.friendDone?'Die andere Person hat sie schon abgeschlossen.':''}</div>`:''}
+  ${planned?`<div class="notice">Gemeinsame Quest für ${dateLabel(planned.day).replace(/\.$/,'')}. ${friendFinished(state,planned)?'Die andere Person hat sie schon abgeschlossen.':''}</div>`:''}
+  ${preparation?`<p class="notice">Du bereitest dich auf „${quests[preparation.quest].title}“ vor. ${link('Zur Einladung','quest/'+preparation.quest+'/'+preparation.code,'text-button')}</p>`:''}
   <div class="detail-grid"><section class="surface mission">
     ${questInformation(quest,hobby)}
-    ${locked?`<div class="notice">Diese Quest wird im Lernpfad freigeschaltet. ${link('Zum Lernpfad','pfad/'+hobby.id,'text-button')}</div>`:
-      `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:''),'button primary')} ${btn('Einplanen','plan',id,'button secondary')} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
+    ${locked?`<div class="notice">Schließe zuerst „${prerequisite?.title||'den Einstieg'}“ ab. ${prerequisite?link('Voraussetzung starten','quest/'+prerequisite.id+(planned?'/'+planned.code:''),'button primary'):link('Zum Lernpfad','pfad/'+hobby.id,'text-button')}</div>`:
+      `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:preparation?'~~'+preparation.code:''),'button primary')} ${btn('Einplanen','plan',id,'button secondary')} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
   </section><aside class="academy-sidebar"><section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Dein Ergebnis</h2><p>${quest.result}</p><h3>So passt du es an</h3><p>${quest.adapt}</p><h3>Danach</h3><p>${quest.stage===4?'Halte fest, was du jetzt selbstständig kannst und was du beim nächsten Versuch ändern würdest.':'Schließe die Übung ab und wähle die nächste verfügbare Quest im Lernpfad.'}</p>${btn('Quest-Link kopieren','copy-quest',quest.id,'text-button')} ${link('Lerncoach zu dieser Quest fragen','hilfe/'+hobby.id+'/'+quest.id,'text-button')}</section>${resourceList(hobby.id,quest.stage)}</aside></div>`;
 }
 function phraseCards() {
@@ -206,7 +234,10 @@ function questInformation(quest,hobby) {
   const checks=state.stepChecks[quest.id+':'+quest.version]||[];
   const open=unlocks(state,quest);
   const guide=starterGuides[quest.id];
-  return `<div class="tags">${chip(svg('time')+' '+quest.minutes+' Min.') }${chip(svg('bolt')+' +'+quest.xp+' XP') }${chip(quest.type)}</div>
+  const days=state.checkpoints[quest.id]||[];
+  const nextDay=days.length?shift(days.at(-1),quest.checkpointGap||1):localDate();
+  return `<div class="tags">${chip(svg('time')+' '+questTime(quest)) }${chip(svg('bolt')+' +'+quest.xp+' XP') }${chip(quest.type)}</div>
+  ${quest.elapsedDays&&open?`<div class="notice"><strong>Mehrere Tage einplanen</strong><p>${days.length} Tage dokumentiert. Nächster Kontrollpunkt: ${dateLabel(nextDay)}.</p>${nextDay>localDate()?'':btn(days.length?'Heutigen Kontrollpunkt speichern':'Heute starten', 'checkpoint',quest.id,'button secondary')}</div>`:''}
   <h2>Was du brauchst</h2><p>${quest.materials||hobby.materials}</p>
   <h2>Was du übst</h2><p>${lessons[hobby.id].technique}</p>
   ${guide?.intro?`<p class="notice">${guide.intro}</p>`:''}
@@ -218,7 +249,7 @@ function questInformation(quest,hobby) {
   <ol class="steps guided-steps">${quest.steps.map((step,index)=>{
     const sentence=esc(/[.!?]$/.test(step)?step:step+'.');
     return `<li>${open?`<label><input type="checkbox" data-quest-step="${quest.id}" value="${index}" ${checks.includes(index)?'checked':''}><span>${sentence}</span></label>`:sentence}
-    ${open&&guide?.tips[index]?`<details><summary>Tipp zu Schritt ${index+1}</summary><p>${guide.tips[index]}</p></details>`:''}</li>`;
+    ${open&&(quest.guided?.[index]?.tip||guide?.tips[index])?`<details><summary>Tipp zu Schritt ${index+1}</summary><p>${quest.guided?.[index]?.tip||guide.tips[index]}</p>${(quest.guided?.[index]?.issues||[]).map(([problem,fix])=>`<p><strong>${problem}</strong><br>${fix}</p>`).join('')}</details>`:''}</li>`;
   }).join('')}</ol>
   <h3>Woran du merkst, dass es geklappt hat</h3><p>${guide?.success||quest.result+'. Vergleiche dein Ergebnis mit dem Ziel der Quest.'}</p>`;
 }
@@ -265,7 +296,7 @@ function labPage(id) {
     `<div class="detail-grid lab-grid"><section class="surface mission"><div class="tags">${chip(cleared?'25 XP erhalten':'+25 XP beim ersten Bestehen')}</div><h2>${exercise.title}</h2><p>${exercise.goal}</p><p>${exercise.idea}</p>
     <div class="lab-palette"><h3>Blöcke hinzufügen</h3><div class="actions">${exercise.palette.map(key=>btn(blocks[key].label,'lab-add',exercise.id+'~'+key,'block '+blocks[key].kind)).join('')}</div></div>
     <h3>Dein Programm</h3>${draft.length?`<ol class="program">${draft.map(key=>`<li><span class="block ${blocks[key].kind}">${blocks[key].label}</span></li>`).join('')}</ol>`:empty('Wähle einen Ereignisblock, um dein Programm zu beginnen.')}
-    <div class="actions">${btn('Programm testen','lab-run',exercise.id,'button primary')}${draft.length?btn('Letzten Block entfernen','lab-undo',exercise.id,'button secondary'):''}</div>
+    <div class="actions">${btn('Programm testen','lab-run',exercise.id,'button primary')}${draft.length?btn('Letzten Block entfernen','lab-undo',exercise.id,'button secondary')+btn('Neu anfangen','lab-reset',exercise.id,'text-button'):''}</div>
     <details><summary>Tipp anzeigen</summary><p>${exercise.hint}</p></details></section>
     <aside class="surface utility stage"><div class="section-title"><h2>Bühne</h2>${chip(pointLabel(frame.points))}</div>${board(frame)}
     ${run?`<div id="lab-feedback" class="feedback ${run.pass?'positive':'try-again'}" tabindex="-1"><strong>${run.message}</strong>
@@ -310,11 +341,11 @@ function rankingRows(rows,quest,{actions=false}={}) {
   return `<ol class="ranking">${rows.map(row=>{
     const position=quest.max?rows.findIndex(other=>other.score===row.score)+1:'✦';
     const result=quest.max?row.score+(quest.max<999?' / '+quest.max:''):row.result;
-    return `<li><span class="rank-number">${position}</span><strong>${esc(row.name)}${row.mine?' <small>(du)</small>':''}</strong><span>${esc(result)}</span>
+    return `<li class="${!row.mine&&rankId(row)===importedRank?'new-rank':''}"><span class="rank-number">${position}</span><strong>${esc(row.name)}${row.mine?' <small>(du)</small>':''}</strong><span>${esc(result)}</span>
     ${actions?(row.mine?btn('Teilen','share',row.id,'text-button'):btn('Entfernen','remove-score',rankId(row),'text-button')):''}</li>`;
   }).join('')}</ol>`;
 }
-function rankingPage(view) {
+function rankingPage(view,focused) {
   const current=monday();
   const known=[...new Set([current,...state.entries.filter(entry=>entry.quest.startsWith('challenge-')).map(entry=>entry.week),...state.scores.map(entry=>entry.week)])].sort().reverse();
   const week=view==='gesamt'?null:known.includes(view)?view:current;
@@ -323,7 +354,7 @@ function rankingPage(view) {
     <label>Zeitraum<select name="period"><option value="gesamt" ${week===null?'selected':''}>Gesamtbestwerte</option>
     ${known.map(day=>`<option value="${day}" ${week===day?'selected':''}>${day===current?'Diese Woche · ':''}${weekRange(day)}</option>`).join('')}</select></label>
     <button class="button secondary">Zeitraum anzeigen</button></form><p>Diese Ranglisten zeigen deine Ergebnisse und manuell importierte Beiträge. Die Werte sind Selbstauskünfte.</p>${btn('Ergebnislink importieren','import','','button secondary')}</section>
-  <div class="rank-grid section">${challenges.filter(quest=>quest.max).map(quest=>`<section class="surface utility">
+  <div class="rank-grid section">${challenges.filter(quest=>quest.max||quest.id===focused).sort((a,b)=>Number(b.id===focused)-Number(a.id===focused)).map(quest=>`<section class="surface utility">
     <div class="tile-icon lilac">${quest.icon}</div><h2>${quest.title}</h2><p>${quest.result}</p>${rankingRows(leaderboard(state,quest,week),quest)}
     ${link('Regeln & Ergebnis','challenge/'+quest.id,'button secondary')}</section>`).join('')}</div>`;
 }
@@ -335,7 +366,7 @@ function challengeIndex() {
     <section class="surface utility"><p class="eyebrow">DIESE WOCHE EMPFOHLEN</p><h2>${highlight.icon} ${highlight.title}</h2><p>${highlight.result} · ${highlight.minutes} Min.</p>
     <div class="actions">${link('Mitmachen','challenge/'+highlight.id,'button primary')}${btn('An Freunde schicken','copy-quest',highlight.id,'button secondary')}${link('Alle Ranglisten','ranglisten','text-button')}</div></section>
     <div class="hobby-grid catalog-grid">${challenges.map(quest=>`<a class="hobby-card surface" href="#challenge/${quest.id}"><div class="card-art ${quest.group}"><span>${quest.icon}</span></div><div class="card-content">
-    <p class="eyebrow">${quest.max?'RANGLISTE':'GALERIE'}</p><h3>${quest.title}</h3><p>${quest.result}</p><div class="card-meta"><span>${quest.minutes} Min.</span><span>+${quest.xp} XP</span></div></div></a>`).join('')}</div>
+    <p class="eyebrow">${quest.max?'RANGLISTE':'ERGEBNISLISTE'}</p><h3>${quest.title}</h3><p>${quest.result}</p><div class="card-meta"><span>${quest.minutes} Min.</span><span>+${quest.xp} XP</span></div></div></a>`).join('')}</div>
     <section class="section"><h2>Gemeinsame Quests</h2>${invitesList()}</section>`;
 }
 function challengePage(id) {
@@ -344,13 +375,52 @@ function challengePage(id) {
   const rows=leaderboard(state,quest);
   const ranking=quest.max>0;
   return `<p>${link('Alle Challenges','challenges','text-button')}</p>${titleBlock('WOCHEN-CHALLENGE',quest.title,weekRange(monday()))}
-  <div class="detail-grid"><section class="surface mission">${questInformation(quest,byHobby[quest.hobby])}${btn('Ergebnis eintragen','finish',id,'button primary')} ${btn('Gemeinsam machen','invite',id,'button secondary')}
+  <div class="detail-grid"><section class="surface mission">${questInformation(quest,byHobby[quest.hobby])}${btn('Ergebnis eintragen','finish',id,'button primary')} ${btn('Gemeinsam machen','invite',id,'button secondary')} ${onlineRooms&&ranking?btn('Privaten Live-Raum erstellen','create-room',id,'button secondary'):''}
   <h3>So passt du es an</h3><p>${quest.adapt}</p></section>
-  <aside class="surface utility"><div class="tile-icon lilac">${svg('trophy')}</div><h2>${ranking?'Deine private Rangliste':'Deine private Galerie'}</h2><p>${ranking?'Gleiche Bedingungen für alle. Pro Person zählt das beste Ergebnis dieser Woche.':'Hier sammelst du deine eigenen und importierte Beiträge aus dieser Woche.'}</p>
+  <aside class="surface utility"><div class="tile-icon lilac">${svg('trophy')}</div><h2>${ranking?'Deine private Rangliste':'Deine private Ergebnisliste'}</h2><p>${ranking?'Gleiche Bedingungen für alle. Pro Person zählt das beste Ergebnis dieser Woche.':'Hier sammelst du Titel und importierte Beiträge aus dieser Woche. Eigene Fotos bleiben privat im Projektbuch.'}</p>
   ${rankingRows(rows,quest,{actions:true})}${btn('Ergebnislink importieren','import','','button secondary')} ${btn('Challenge-Link kopieren','copy-quest',id,'text-button')} ${ranking?link('Zeiträume und Bestwerte','ranglisten','text-button'):''}</aside></div>`;
 }
+function roomPage(id) {
+  if(!/^[A-Za-z0-9_-]{24}$/.test(id||'')) return missing();
+  if(!roomSupported()) return titleBlock('PRIVATER RAUM','Dieser Raum braucht die Serverversion.','Öffne den ursprünglichen Einladungslink auf dem Server, auf dem der Raum erstellt wurde.');
+  const room=currentRoom?.id===id?currentRoom:null;
+  if(room?.error) return titleBlock('PRIVATER RAUM','Raum konnte nicht geöffnet werden.',esc(room.error))+btn('Erneut versuchen','refresh-room',id,'button secondary');
+  if(!room) return titleBlock('PRIVATER RAUM','Raum wird geladen …','Wir holen die gemeinsame Ergebnisliste.');
+  const quest=quests[room.quest];
+  const own=room.rows.find(row=>row.mine);
+  return `${titleBlock('PRIVATER RAUM',quest.title,'Personen mit dem Einladungslink können die Ergebnisliste sehen und eigene Werte eintragen.')}
+  <div class="detail-grid"><section class="surface mission"><h2>Ein Ergebnis eintragen</h2><p>Verwende einen Spitznamen. Raumwerte werden als Selbstauskunft gespeichert und ersetzen deine vorherige Wertung für diesen Raum.</p>
+  <details><summary>Regeln für vergleichbare Versuche</summary><ol>${quest.steps.map(step=>`<li>${esc(step)}</li>`).join('')}</ol></details>
+  <form data-form="room-score" data-value="${id}"><label>Spitzname<input name="name" maxlength="28" required value="${esc(own?.name||state.name)}"></label><label>${quest.result}<input name="score" type="number" required min="0" max="${quest.max}" value="${esc(own?.score)}"></label><button class="button primary">In gemeinsamer Liste speichern</button></form>
+  </section><section class="surface utility"><h2>Gemeinsame Rangliste</h2><p>Aktualisiert sich automatisch. Der Raum bleibt bis ${dateLabel(localDate(new Date(room.expires)))} verfügbar.</p><div id="room-results">${rankingRows(room.rows,quest)}</div>${btn('Einladungslink kopieren','copy-room',id,'button secondary')}</section></div>`;
+}
+async function refreshRoom(id) {
+  if(roomLoading||roomWriting||!roomSupported()) return;
+  roomLoading=true;
+  const route='raum/'+id;
+  try {
+    const data=await callRoom('/'+id,{token:knownRoomToken()});
+    if(location.hash!=='#'+route) return;
+    const list=main.querySelector('#room-results');
+    currentRoom={id,...data};
+    if(list) list.innerHTML=rankingRows(data.rows,quests[data.quest]);
+    else render();
+  } catch(error) {
+    if(location.hash!=='#'+route) return;
+    if(main.querySelector('#room-results')) return;
+    currentRoom={id,error:error.message};
+    render();
+  } finally {roomLoading=false;}
+}
+function watchRoom() {
+  clearInterval(roomTimer);
+  const [page,id]=location.hash.slice(1).split('/');
+  if(page!=='raum'||!/^[A-Za-z0-9_-]{24}$/.test(id||'')||!roomSupported()) return;
+  refreshRoom(id);
+  roomTimer=setInterval(()=>refreshRoom(id),5000);
+}
 function invitesList() {
-  return state.invites.length?`<div class="stack">${state.invites.map(invite=>`<article class="surface list-row"><div><h3>${quests[invite.quest].title}</h3><p>${dateLabel(invite.day)} · ${invite.done&&invite.friendDone?'Gemeinsam erledigt':invite.done?'Du bist fertig':invite.friendDone?'Dein Gegenüber ist fertig':'Geplant'}</p></div><div class="actions">${link('Quest ansehen','quest/'+invite.quest+'/'+invite.code,'button secondary')}${btn('Einladung teilen','share-invite',invite.code,'text-button')}${btn('Entfernen','remove-invite',invite.code,'text-button')}</div></article>`).join('')}</div>`:empty('Öffne eine Quest und wähle „Gemeinsam machen“, um einen Einladungslink zu erstellen.');
+  return state.invites.length?`<div class="stack">${state.invites.map(invite=>`<article class="surface list-row"><div><h3>${quests[invite.quest].title}</h3><p>${dateLabel(invite.day)} · ${invite.done&&friendFinished(state,invite)?'Gemeinsam erledigt':invite.done?'Du bist fertig':friendFinished(state,invite)?'Dein Gegenüber ist fertig':'Geplant'}</p></div><div class="actions">${link('Quest ansehen','quest/'+invite.quest+'/'+invite.code,'button secondary')}${btn('Einladung teilen','share-invite',invite.code,'text-button')}${btn('Entfernen','remove-invite',invite.code,'text-button')}</div></article>`).join('')}</div>`:empty('Öffne eine Quest und wähle „Gemeinsam machen“, um einen Einladungslink zu erstellen.');
 }
 function weekPage() {
   const week=monday(), upcoming=state.plans.slice().sort((a,b)=>a.day.localeCompare(b.day));
@@ -375,13 +445,13 @@ function profilePage() {
   }
   return `${titleBlock('DEIN PROFIL',state.name?'Hi, '+esc(state.name)+'.':'Dein Projektbuch.','Hier findest du die Quests, Projekte und persönlichen Bestleistungen, die du gesammelt hast.')}
     <div class="stat-grid"><div class="surface stat"><span>${svg('bolt')} Erfahrung</span><strong>${totalXp(state)} XP</strong></div><div class="surface stat"><span>${svg('flame')} Tagesstreak</span><strong>${daily.running} T.</strong><small>Bestwert: ${daily.best} ${daily.best===1?'Tag':'Tage'}</small></div><div class="surface stat"><span>✦ Aktuelle Wochenserie</span><strong>${running} Wo.</strong></div><div class="surface stat"><span>${svg('trophy')} Beste Wochenserie</span><strong>${best} Wo.</strong></div></div>
-    <div class="detail-grid section"><section class="surface mission"><h2>Projektbuch</h2>${state.entries.length?`<ul class="plain-list timeline">${state.entries.map(entry=>`<li><div><small>${dateLabel(entry.day)} · ${quests[entry.quest].type}</small><h3><a href="#quest/${entry.quest}">${quests[entry.quest].title}</a></h3><p>${entry.score==null?'':entry.score+' · '}${esc(entry.result)}</p>${entry.note?`<p>${esc(entry.note)}</p>`:''}</div>${btn('Erfolgskarte','card',entry.id,'text-button')}</li>`).join('')}</ul>`:empty('Schließe deine erste Quest ab. Dann taucht sie hier auf.') }
+    <div class="detail-grid section"><section class="surface mission"><h2>Projektbuch</h2>${state.entries.length?`<ul class="plain-list timeline">${state.entries.map(entry=>`<li><div><small>${dateLabel(entry.day)} · ${quests[entry.quest].type}</small><h3><a href="#quest/${entry.quest}">${quests[entry.quest].title}</a></h3><p>${entry.score==null?'':entry.score+' · '}${esc(entry.result)}</p>${entry.note?`<p>${esc(entry.note)}</p>`:''}${entry.quest==='challenge-foto'?`<div class="project-photo" data-photo="${esc(entry.id)}"></div>`:''}</div>${btn('Erfolgskarte','card',entry.id,'text-button')}</li>`).join('')}</ul>`:empty('Schließe deine erste Quest ab. Dann taucht sie hier auf.') }
     <h2>Abgeschlossene Wochenvorhaben</h2>${state.journeys.map(id=>journeys.find(journey=>journey.id===id)).filter(journey=>journey.quests.every(id=>completed(state,id))).map(journey=>`<p>${journey.icon} ${journey.title}</p>`).join('')||empty('Deine fertigen Wochenvorhaben erscheinen hier.')}</section>
     <aside class="surface utility"><h2>Deine Hobbys</h2>${state.active.length?`<ul class="levels">${state.active.map(id=>`<li><a href="#pfad/${id}">${byHobby[id].icon} ${byHobby[id].name}</a><strong>Level ${level(state,byHobby[id])}</strong></li>`).join('')}</ul>`:empty('Noch keine Hobbys gemerkt.')}
     <h2>Abzeichen</h2><ul class="badges">${badges(state).map(([icon,label,has])=>`<li class="${has?'earned':''}"><span>${icon}</span><span>${label}</span><small>${has?'Erhalten':'Offen'}</small></li>`).join('')}</ul>
     <h2>Bestleistungen</h2>${bests.size?`<ul class="levels">${[...bests.values()].map(entry=>`<li><span>${quests[entry.quest].title}<small>${entry.condition==='standard'?'Standardregeln':esc(entry.condition)}</small></span><strong>${entry.score}</strong></li>`).join('')}</ul>`:empty('Messbare Ergebnisse werden nach Bedingungen und Quest-Version verglichen.') }</aside></div>
-    <section class="surface utility section narrow"><h2>Profileinstellungen</h2><p>Dein Fortschritt bleibt in diesem Browser. Wenn du eine Erfolgskarte teilst, enthält sie deinen gewählten Anzeigenamen und das Ergebnis. Deine private Notiz bleibt hier.</p><form data-form="profile"><label>Anzeigename <input name="name" maxlength="28" value="${esc(state.name)}" placeholder="Optional"></label><button class="button secondary">Speichern</button></form>
-    <h2>Fortschritt sichern</h2><p>Mit einer Sicherungsdatei nimmst du deine eigenen Quests, Übungsdaten und Hobby-Einstellungen auf ein anderes Gerät mit. Die Datei enthält auch deine privaten Quest-Notizen.</p>
+    <section class="surface utility section narrow"><h2>Profileinstellungen</h2><p>Dein Fortschritt liegt in diesem Browser. Wenn du eine Erfolgskarte teilst, enthält sie deinen gewählten Anzeigenamen und das Ergebnis. Deine private Notiz bleibt hier.</p><form data-form="profile"><label>Anzeigename <input name="name" maxlength="28" value="${esc(state.name)}" placeholder="Optional"></label><button class="button secondary">Speichern</button></form>
+    <h2>Fortschritt sichern</h2><p>Die Sicherung enthält Ergebnisse und Notizen, Termine, Wochenvorhaben, Einladungen, importierte Ranglistenwerte, Einstellungen und Entwürfe. Fotos bleiben auf diesem Gerät.</p>
     <div class="actions">${btn('Fortschritt herunterladen','backup','','button secondary')}${btn('Sicherung importieren','restore','','button secondary')}</div></section>`;
 }
 const sources=[
@@ -406,38 +476,46 @@ function sharedPage(code) {
     <section class="surface mission narrow"><p>${data.done?'Die einladende Person hat die Quest bereits erledigt.':'Ihr könnt die Quest separat abschließen und euren Status danach per Link teilen.'}</p>${btn('Einladung übernehmen','join',code,'button primary')} ${link('Quest ansehen','quest/'+data.quest,'button secondary')}</section>`;
   return `${titleBlock('ERFOLGSKARTE',quest.title,esc(data.name)+' hat diese Quest abgeschlossen.')}
     <section class="surface mission narrow"><div class="tile-icon lilac">✦</div><h2>${data.score!==null?data.score+' · ':''}${esc(data.result)}</h2><p>Selbst eingetragenes Ergebnis · Woche ${weekRange(data.week)}</p>
-    ${quest.type==='Challenge'?btn('Zur Rangliste oder Galerie hinzufügen','accept-score',code,'button primary'):''} ${link('Quest ausprobieren','quest/'+data.quest,'button secondary')}</section>`;
+    ${quest.type==='Challenge'?btn('Zur Rangliste oder Ergebnisliste hinzufügen','accept-score',code,'button primary'):''} ${link('Quest ausprobieren','quest/'+data.quest,'button secondary')}</section>`;
 }
 function render() {
-  const [page,id,param]=location.hash.slice(1).split('/');
-  const selected=({pfad:'entdecken',quest:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',challenge:'challenges',ranglisten:'challenges',woche:'heute'})[page]||page||'heute';
+  const [page,id,param]=(location.hash==='#main'?'heute':location.hash.slice(1)).split('/');
+  const selected=({pfad:'entdecken',quest:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',challenge:'challenges',ranglisten:'challenges',raum:'challenges',woche:'heute'})[page]||page||'heute';
   nav.innerHTML=navigation.map(([route,label,icon])=>`<a href="#${route}" ${route===selected?'aria-current="page"':''}>${svg(icon)}<span>${label}</span></a>`).join('');
   top.innerHTML=`<div class="top-left"><span class="mobile-mark mark">✳</span><div><p>${new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</p><strong>${state.name?'Hi, '+esc(state.name):'Willkommen bei Hobbymaxing'}</strong></div></div><div class="top-stats"><a class="xp-chip" href="#profil">${svg('bolt')} <strong>${totalXp(state)} XP</strong></a><a class="avatar" href="#profil" aria-label="Profil">${state.name?esc(Array.from(state.name)[0].toLocaleUpperCase('de')):svg('user')}</a></div>`;
-  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,wissen:quizPage,labor:labPage,studio:studioPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
+  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,wissen:quizPage,labor:labPage,studio:studioPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
   main.innerHTML=(Object.hasOwn(views,page||'heute')?views[page||'heute']:missing)(id,param);
+  if(page==='profil') showPhotos(main);
 }
+document.querySelector('.skip').addEventListener('click',event=>{
+  event.preventDefault();
+  main.focus();
+  main.scrollIntoView({block:'start'});
+});
 function openModal(title,contents) {
   modal.innerHTML=`<div class="modal-header"><h2 id="dialog-title">${title}</h2>${btn('Schließen','close','','text-button')}</div>${contents}`;
   modal.setAttribute('aria-labelledby','dialog-title');
   if(!modal.open) modal.showModal();
 }
 const modalForm=(name,id,contents,label)=>`<form data-form="${name}" data-value="${esc(id)}">${contents}<button class="button primary" type="submit">${label}</button></form>`;
-function finishDialog(id) {
+function finishDialog(id,entry) {
   const [questId,invite]=id.split('~');
   const quest=quests[questId];
-  if(!quest||!unlocks(state,quest)) return;
+  if(!quest||(!entry&&!unlocks(state,quest))) return;
   const result=quest.max?
-    `<label>${quest.result}<input name="score" type="number" inputmode="numeric" required min="0" max="${quest.max}"></label>`:
-    `<label>${quest.result}<input name="result" required maxlength="160" placeholder="Dein Ergebnis in einem Satz"></label>`;
-  const condition=quest.max&&quest.type!=='Challenge'?`<label>Vergleichsbedingungen<input name="condition" required maxlength="100" placeholder="z. B. 3 m, linker Fuß, gleiches Ziel"></label>`:'';
+    `<label>${quest.result}<input name="score" type="number" inputmode="numeric" required min="0" max="${quest.max}" value="${esc(entry?.score)}"></label>`:
+    `<label>${quest.result}<input name="result" required maxlength="160" placeholder="Dein Ergebnis in einem Satz" value="${esc(entry?.result)}"></label>`;
+  const condition=quest.max&&quest.type!=='Challenge'?`<label>Vergleichsbedingungen<input name="condition" required maxlength="100" placeholder="z. B. 3 m, linker Fuß, gleiches Ziel" value="${esc(entry?.condition)}"></label>`:'';
   const prior=state.entries.some(entry=>entry.quest===questId&&(quest.type!=='Challenge'||entry.week===monday()));
-  openModal('Quest abschließen',modalForm('finish',id,
+  openModal(entry?'Ergebnis korrigieren':'Quest abschließen',modalForm(entry?'edit-entry':'finish',entry?.id||id,
     `<p>${quest.title} · ${prior?'Wiederholung':'+'+quest.xp+' XP'}</p>${result}${condition}
-      ${quest.type==='Challenge'?'':`<label>Wie sicher fühlst du dich?<select name="confidence"><option value="">Noch offen</option><option value="retry">Ich möchte die Technik noch einmal üben</option><option value="ready">Ich bin bereit für den nächsten Schritt</option></select></label>`}
-      <label>Private Notiz <textarea name="note" maxlength="420" placeholder="Was hat gut geklappt?"></textarea></label>
+      ${entry||quest.type==='Challenge'?'':`<label>Wie sicher fühlst du dich?<select name="confidence"><option value="">Noch offen</option><option value="retry">Ich möchte die Technik noch einmal üben</option><option value="ready">Ich bin bereit für den nächsten Schritt</option></select></label>`}
+      <label>Private Notiz <textarea name="note" maxlength="420" placeholder="Was hat gut geklappt?">${esc(entry?.note)}</textarea></label>
+      ${quest.id==='challenge-foto'?'<label>Privates Foto für dein Projektbuch (optional)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"></label>':''}
+      <p id="result-error" role="alert" hidden></p>
       ${invite?'<p class="notice">Der Abschluss zählt auch für eure gemeinsame Quest.</p>':''}`,'Ergebnis speichern'));
 }
-function cardDialog(entry) {
+function cardDialog(entry,{recent=false,returnInvite=''}={}) {
   if(!entry) return;
   const quest=quests[entry.quest];
   const hobby=byHobby[quest.hobby];
@@ -449,11 +527,25 @@ function cardDialog(entry) {
   ${entry.previous!==null?`<p>Letzter vergleichbarer Versuch: ${entry.previous}</p>`:''}${wasBest?'<p><strong>Persönliche Bestleistung</strong></p>':''}</div>
   <p>${retry?'Wiederhole die Übung und achte auf eine einzige Änderung. In „Heute“ kann sie als Nächstes erscheinen.':resultFeedback(quest)}</p>
   <div class="actions">${retry?link('Übung wiederholen','quest/'+quest.id,'button primary'):''}${options.map((item,index)=>link(item.title,'quest/'+item.id,'button '+(!retry&&index===0?'primary':'secondary'))).join('')}
-  <p>${btn(quest.type==='Challenge'?'Ergebnislink für Freunde kopieren':'Erfolgskarten-Link kopieren','share',entry.id,'button secondary')}</p>`);
+  ${returnInvite?`<p>${link('Zur gemeinsamen Quest','quest/'+quests[state.invites.find(invite=>invite.code===returnInvite).quest].id+'/'+returnInvite,'button primary')}</p>`:''}
+  <div class="actions">${btn(quest.type==='Challenge'?'Ergebnislink für Freunde kopieren':'Erfolgskarten-Link kopieren','share',entry.id,'button secondary')}${btn('Ergebnis korrigieren','edit-entry',entry.id,'text-button')}${recent?btn('Abschluss rückgängig','undo-entry',entry.id,'text-button'):''}</div>`);
 }
 function resultFeedback(quest) {
   const guide=starterGuides[quest.id];
   return guide?'Selbstcheck: '+esc(guide.success):'Vergleiche dein Ergebnis mit dem Ziel der Quest. Du kannst jederzeit den nächsten Schritt wählen.';
+}
+function resultValues(data,invite='') {
+  const raw=data.get('score');
+  return {score:typeof raw==='string'&&raw.trim()?Number(raw):NaN,condition:data.get('condition'),note:data.get('note'),result:data.get('result'),confidence:data.get('confidence'),invite};
+}
+function resultError(form,message) {
+  const note=form.querySelector('#result-error');
+  note.textContent=message;
+  note.hidden=false;
+  form.querySelector('[name="result"],[name="score"]')?.focus();
+}
+function saveDraft(kind,id,draft) {
+  return save(latest=>{latest[kind][id]=[...draft];},{refresh:false});
 }
 function urlFor(hash) { return new URL('#'+hash,location.href).href; }
 function resultLink(entry) {
@@ -461,7 +553,8 @@ function resultLink(entry) {
   return urlFor('teilen/'+encode({mode:'result',quest:entry.quest,version:entry.version,week:entry.week,name:state.name||'Mitspieler',player:state.playerId,score:entry.score,result:entry.result||quests[entry.quest].result}));
 }
 function inviteLink(invite) {
-  return urlFor('teilen/'+encode({mode:'invite',quest:invite.quest,code:invite.code,day:invite.day,name:state.name||'Mitspieler',done:invite.done}));
+  if(!state.playerId&&!save(latest=>{latest.playerId ||= crypto.randomUUID();})) return '';
+  return urlFor('teilen/'+encode({mode:'invite',quest:invite.quest,code:invite.code,day:invite.day,name:state.name||'Mitspieler',sender:state.playerId,done:invite.done}));
 }
 async function copy(value,message='Link kopiert.') {
   try { await navigator.clipboard.writeText(value); alertUser(message); }
@@ -477,20 +570,56 @@ function acceptResult(data) {
     latest.scores.push(data);
   });
 }
-document.addEventListener('click',event=>{
+document.addEventListener('click',async event=>{
   const action=event.target.closest('[data-action]');
   if(!action) return;
   const {action:kind,value}=action.dataset;
   switch(kind) {
     case 'close': modal.close(); break;
+    case 'create-room':
+      action.disabled=true;
+      try {
+        const room=await callRoom('',{method:'POST',body:{quest:value}});
+        location.hash='raum/'+room.code;
+      } catch(error) {alertUser(error.message);}
+      finally {action.disabled=false;}
+      break;
+    case 'copy-room': copy(urlFor('raum/'+value)); break;
+    case 'refresh-room':
+      currentRoom=null;
+      render();
+      refreshRoom(value);
+      break;
     case 'language':
       if(Object.hasOwn(languages,value)) {
+        if(!save(latest=>{latest.language=value;},{refresh:false})) break;
         language=value;
         const region=main.querySelector('#phrase-cards');
         region.innerHTML=phraseCards();
         region.querySelector('[aria-pressed="true"]').focus();
       }
       break;
+    case 'checkpoint':
+      if(quests[value]?.elapsedDays&&save(latest=>{
+        if(!unlocks(latest,quests[value])) return false;
+        const days=latest.checkpoints[value]??=[];
+        if(days.length&&shift(days.at(-1),quests[value].checkpointGap||1)>localDate()) return false;
+        days.push(localDate());
+      })) alertUser('Kontrollpunkt gespeichert.');
+      break;
+    case 'edit-entry': {
+      const entry=state.entries.find(item=>item.id===value);
+      if(entry) finishDialog(entry.quest,entry);
+      break;
+    }
+    case 'undo-entry':
+      if(save(latest=>changeEntry(latest,value))) {deletePhoto(value).catch(()=>{});modal.close();alertUser('Abschluss rückgängig gemacht.');}
+      break;
+    case 'merge-plan': {
+      const [id,day]=value.split('~');
+      if(save(latest=>updatePlan(latest,id,day,true)==='done')) {modal.close();alertUser('Termine zusammengeführt.');}
+      break;
+    }
     case 'speak': {
       const [id,index]=value.split('~');
       const item=languages[id];
@@ -541,12 +670,14 @@ document.addEventListener('click',event=>{
         const index=Number(cell), at=draft.indexOf(index);
         if(at===-1) draft.push(index);
         else draft.splice(at,1);
+        saveDraft('studioDrafts',id,draft);
         delete studioReplies[id];
         action.setAttribute('aria-pressed',String(at===-1));
         main.querySelector('#studio-feedback')?.remove();
         break;
       }
       if(kind==='studio-reset') {
+        saveDraft('studioDrafts',id,[]);
         studioDrafts[id]=[];
         delete studioReplies[id];
       } else {
@@ -561,6 +692,7 @@ document.addEventListener('click',event=>{
     }
     case 'lab-add':
     case 'lab-undo':
+    case 'lab-reset':
     case 'lab-run': {
       const [id,block]=value.split('~');
       const exercise=experiments.find(item=>item.id===id);
@@ -570,11 +702,15 @@ document.addEventListener('click',event=>{
         if(draft.length===12) {alertUser('Bis zu zwölf Blöcke passen in diese Übung.'); break;}
         if(exercise.palette.includes(block)) draft.push(block);
       } else if(kind==='lab-undo') draft.pop();
+      else if(kind==='lab-reset') draft.length=0;
       if(kind==='lab-run') {
         const run=runBlocks(draft,exercise);
         labRuns[id]=run;
         if(run?.pass) awardPractice('lab-'+id,25);
-      } else delete labRuns[id];
+      } else {
+        saveDraft('labDrafts',id,draft);
+        delete labRuns[id];
+      }
       render();
       if(kind==='lab-run') main.querySelector('#lab-feedback')?.focus();
       else {
@@ -624,7 +760,7 @@ document.addEventListener('click',event=>{
     }
     case 'share-invite': {
       const invite=state.invites.find(item=>item.code===value);
-      if(invite) copy(inviteLink(invite));
+      if(invite) {const url=inviteLink(invite); if(url) copy(url);}
       break;
     }
     case 'import':
@@ -633,7 +769,8 @@ document.addEventListener('click',event=>{
     case 'accept-score': {
       const data=decode(value);
       if(acceptResult(data)) {
-        location.hash='challenge/'+data.quest;
+        importedRank=rankId(data);
+        location.hash='ranglisten/'+data.week+'/'+data.quest;
         alertUser('Ergebnis hinzugefügt.');
       } else alertUser('Dieses Ergebnis lässt sich nicht übernehmen.');
       break;
@@ -641,12 +778,8 @@ document.addEventListener('click',event=>{
     case 'join': {
       const data=decode(value);
       if(!validShare(data)||data.mode!=='invite') return;
-      if(save(latest=>{
-        const existing=latest.invites.find(invite=>invite.code===data.code);
-        if(existing&&existing.quest!==data.quest) return false;
-        if(existing) existing.friendDone=existing.friendDone||data.done;
-        else latest.invites.unshift({code:data.code,quest:data.quest,day:data.day,done:false,friendDone:data.done});
-      })) location.hash='quest/'+data.quest+'/'+data.code;
+      if(save(latest=>inviteJoin(latest,data))) location.hash='quest/'+data.quest+'/'+data.code;
+      else alertUser('Diese Einladung kann nicht übernommen werden.');
       break;
     }
   }
@@ -657,6 +790,22 @@ document.addEventListener('submit',async event=>{
   const values=new FormData(form);
   const id=form.dataset.value;
   switch(form.dataset.form) {
+    case 'room-score': {
+      if(roomWriting) break;
+      const name=values.get('name').trim(), score=Number(values.get('score'));
+      if(!name) {alertUser('Gib einen Spitznamen ein.');break;}
+      roomWriting=true;
+      try {
+        const data=await callRoom('/'+id,{method:'PUT',token:roomToken(),body:{name,score}});
+        if(location.hash==='#raum/'+id) {
+          currentRoom={id,...data};
+          main.querySelector('#room-results').innerHTML=rankingRows(data.rows,quests[data.quest]);
+          alertUser('In der gemeinsamen Rangliste gespeichert.');
+        }
+      } catch(error) {alertUser(error.message);}
+      finally {roomWriting=false;}
+      break;
+    }
     case 'coach': {
       const selected=values.get('hobby');
       const question=values.get('question').trim().slice(0,300);
@@ -665,7 +814,9 @@ document.addEventListener('submit',async event=>{
       const match=question.match(/schritt\s*(\d+)|(\d+)\.?\s*(?:ter\s*)?schritt/i);
       const index=match?Number(match[1]||match[2])-1:-1;
       const step=focusQuest&&Number.isInteger(index)?focusQuest.steps[index]:null;
-      const reply=step?{text:starterGuides[focusQuest.id]?.tips[index]||step+' '+focusQuest.adapt,route:'quest/'+focusQuest.id}:coachReply(state,selected,question);
+      const guided=focusQuest?.guided?.[index];
+      const advice=guided&&(guided.issues.find(([problem])=>searchKey(question).includes(searchKey(problem)))?.[1]||[guided.tip,...guided.issues.map(([problem,fix])=>problem+': '+fix)].join(' '));
+      const reply=step?{text:advice||starterGuides[focusQuest.id]?.tips[index]||'Probier diesen Schritt in einer kleineren Variante: '+focusQuest.adapt,route:'quest/'+focusQuest.id}:coachReply(state,selected,question);
       coachHistory=[...coachHistory,{question,name:byHobby[selected]?.name,...reply}].slice(-12);
       const path='hilfe'+(byHobby[selected]?'/'+selected:'')+(focusQuest?'/'+focusQuest.id:'');
       if(location.hash==='#'+path) {
@@ -688,18 +839,36 @@ document.addEventListener('submit',async event=>{
     case 'ranking':
       location.hash='ranglisten/'+values.get('period');
       break;
-    case 'finish': {
-      const [questId,invite='']=id.split('~');
-      const quest=quests[questId];
+    case 'finish':
+    case 'edit-entry': {
+      const editing=form.dataset.form==='edit-entry';
+      const [questId,invite='',returnInvite='']=id.split('~');
+      const quest=quests[editing?state.entries.find(item=>item.id===id)?.quest:questId];
+      if(!quest) return;
+      const result=resultValues(values,invite);
+      if(!validResult(quest,result)) {resultError(form,quest.max?'Gib einen gültigen Wert und gegebenenfalls Vergleichsbedingungen ein.':'Beschreibe kurz dein Ergebnis. Leerzeichen allein reichen nicht.');return;}
+      let photo;
+      const file=values.get('photo');
+      if(file?.size) {
+        const submit=form.querySelector('button[type="submit"]');
+        submit.disabled=true;
+        try { photo=await preparePhoto(file); }
+        catch(error) {resultError(form,error.message);return;}
+        finally {submit.disabled=false;}
+        if(!form.isConnected) return;
+      }
       let saved;
       const ok=save(latest=>{
-        saved=record(latest,quest,{score:Number(values.get('score')),condition:values.get('condition'),note:values.get('note'),result:values.get('result'),confidence:values.get('confidence'),invite});
+        if(editing) return changeEntry(latest,id,result);
+        saved=record(latest,quest,result);
         if(!saved) return false;
         const plan=latest.plans.find(item=>item.quest===questId&&!item.done&&item.day<=saved.day);
-        if(plan) plan.done=true;
+        if(plan) {plan.done=true;plan.entry=saved.id;}
       });
-      if(ok) cardDialog(saved);
-      else alertUser('Dieser Versuch lässt sich heute nicht erneut speichern.');
+      if(!ok) {resultError(form,'Das Ergebnis konnte nicht gespeichert werden. Pro Quest zählt ein regulärer Versuch am Tag.');break;}
+      if(photo) try {await putPhoto(editing?id:saved.id,photo);} catch {alertUser('Das Ergebnis ist gespeichert. Das Foto konnte nicht gespeichert werden.');}
+      if(editing) {modal.close();render();alertUser('Ergebnis korrigiert.');}
+      else cardDialog(saved,{recent:true,returnInvite:state.invites.some(item=>item.code===returnInvite)?returnInvite:''});
       break;
     }
     case 'profile':
@@ -718,7 +887,14 @@ document.addEventListener('submit',async event=>{
       let profile;
       try { profile=parseBackup(await file.text()); } catch { /* Invalid file. */ }
       if(!profile) {alertUser('Diese Datei ist keine gültige Hobbymaxing-Sicherung.'); break;}
-      if(save(latest=>{mergeBackup(latest,profile);})) {modal.close(); alertUser('Fortschritt zusammengeführt.');}
+      let counts;
+      if(save(latest=>{counts=mergeBackup(latest,profile);},{refresh:false})) {
+        language=state.language;
+        labDrafts=structuredClone(state.labDrafts);
+        studioDrafts=structuredClone(state.studioDrafts);
+        render();
+        openModal('Sicherung übernommen',`<p>${counts.added} Ergebnisse, Termine, Einladungen oder Ranglistenwerte hinzugefügt oder aktualisiert. ${counts.skipped} doppelte oder nicht zum Profil passende Einträge übersprungen.</p><p>Hobbys, Einstellungen, Entwürfe, Übungstage und Wochenvorhaben wurden zusammengeführt. Lokale Fotos werden separat im Browser gespeichert.</p>`);
+      }
       break;
     }
     case 'goal':
@@ -730,12 +906,13 @@ document.addEventListener('submit',async event=>{
       const day=values.get('day');
       const kind=form.dataset.form;
       let invite;
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day<localDate()) return;
+      if(!validDay(day)||day<localDate()) return;
+      let collision=false;
       if(!save(latest=>{
         if(kind==='reschedule') {
-          const plan=latest.plans.find(item=>item.id===id);
-          if(!plan) return false;
-          plan.day=day;
+          const result=updatePlan(latest,id,day);
+          collision=result==='collision';
+          if(result!=='done') return false;
         } else if(canPlan(id)&&kind==='plan') {
           if(latest.plans.some(item=>!item.done&&item.day===day&&item.quest===id)) return false;
           latest.plans.push({id:crypto.randomUUID(),quest:id,day,done:false});
@@ -743,7 +920,11 @@ document.addEventListener('submit',async event=>{
           invite={quest:id,day,code:crypto.randomUUID(),done:false,friendDone:false};
           latest.invites.unshift(invite);
         }
-      })) { alertUser('Die Quest ist bereits für diesen Tag geplant.'); return; }
+      })) {
+        if(collision) openModal('Für diesen Tag vorgemerkt',`<p>Diese Quest steht am gewählten Tag bereits im Plan.</p>${btn('Termine zusammenführen','merge-plan',id+'~'+day,'button primary')} ${btn('Beide Termine behalten','close','','button secondary')}`);
+        else alertUser('Die Quest ist bereits für diesen Tag geplant oder der Termin ist nicht mehr verfügbar.');
+        return;
+      }
       if(invite) openModal('Deine Einladung',`<p>Teile den Link, damit die andere Person eure Quest übernehmen kann.</p>${btn('Einladungslink kopieren','share-invite',invite.code,'button primary')}`);
       else { modal.close(); alertUser('Quest eingeplant.'); }
       break;
@@ -756,7 +937,8 @@ document.addEventListener('submit',async event=>{
       } catch { /* Invalid links are handled below. */ }
       if(!acceptResult(data)) { alertUser('Der Link enthält kein neues gültiges Challenge-Ergebnis.'); return; }
       modal.close();
-      location.hash='challenge/'+data.quest;
+      importedRank=rankId(data);
+      location.hash='ranglisten/'+data.week+'/'+data.quest;
       alertUser('Ergebnis hinzugefügt.');
       break;
     }
@@ -788,8 +970,14 @@ window.addEventListener('hashchange',()=>{
   if(location.hash==='#main') { main.focus(); return; }
   if(modal.open) modal.close();
   render();
+  watchRoom();
   window.scrollTo(0,0);
   main.focus({preventScroll:true});
 });
-window.addEventListener('storage',event=>{if(event.key===key) {state=load(localStorage); render();}});
+window.addEventListener('storage',event=>{if(event.key===key) {state=load(localStorage);language=state.language;labDrafts=structuredClone(state.labDrafts);studioDrafts=structuredClone(state.studioDrafts);render();}});
 render();
+watchRoom();
+if(roomSupported()) callRoom('/health').then(result=>{
+  onlineRooms=result.available===true;
+  if(location.hash.startsWith('#challenge/')) render();
+}).catch(()=>{});

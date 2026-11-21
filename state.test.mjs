@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hobbies,quests,byHobby,challenges} from './catalog.mjs';
-import {initial,load,record,totalXp,unlocks,level,streaks,weekGoal,validShare,encode,decode,leaderboard,rankId,earnPractice,dailyStreak} from './state.mjs';
+import {initial,load,record,totalXp,unlocks,level,streaks,weekGoal,validShare,encode,decode,leaderboard,rankId,earnPractice,dailyStreak,changeEntry,inviteJoin,friendFinished,firstPrerequisite,updatePlan} from './state.mjs';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
 import {questionOptions,coachReply,experiments,runBlocks} from './learning.mjs';
 import {studios,studioCell,checkStudio} from './studios.mjs';
-import {questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,languages} from './play.mjs';
+import {questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,languages,searchKey} from './play.mjs';
 
 const day = iso => new Date(iso+'T12:00:00');
 const score = (value,condition='3 m') => ({score:value,condition});
@@ -145,4 +145,65 @@ test('repeated practice keeps the streak and backups merge without duplicate rew
   assert.equal(fresh.entries[0].confidence,'retry');
   assert.equal(fresh.entries.length,1);
   assert.equal(parseBackup('{"version":1}'),null);
+});
+
+test('whitespace cannot unlock a quest and editing or undoing restores XP and best values',()=>{
+  const state=initial();
+  assert.equal(record(state,quests['sprachen-1'],{result:'  '},day('2026-11-20')),null);
+  assert.equal(unlocks(state,quests['sprachen-2']),false);
+  const first=record(state,quests['challenge-pass'],score(9),day('2026-11-20'));
+  const second=record(state,quests['challenge-pass'],score(6),day('2026-11-21'));
+  assert.equal(changeEntry(state,first.id,score(4)),true);
+  assert.equal(state.entries[0].previous,4);
+  assert.equal(leaderboard(state,quests['challenge-pass'],'2026-11-16')[0].score,6);
+  assert.equal(changeEntry(state,first.id),true);
+  assert.equal(state.entries[0].id,second.id);
+  assert.equal(state.entries[0].previous,null);
+  assert.equal(totalXp(state),40);
+});
+
+test('a guest sees the missing prerequisite and reimporting a self invitation cannot create a second player',()=>{
+  const host=initial(), guest=initial();
+  host.playerId=crypto.randomUUID();
+  const data={mode:'invite',quest:'sprachen-2',day:'2026-11-21',code:crypto.randomUUID(),sender:host.playerId,name:'Test',done:true};
+  host.invites.push({code:data.code,quest:data.quest,day:data.day,done:true,friendDone:false});
+  assert.equal(inviteJoin(host,data),true);
+  assert.equal(friendFinished(host,host.invites[0]),false);
+  assert.equal(inviteJoin(guest,data),true);
+  assert.equal(firstPrerequisite(guest,quests[data.quest]).id,'sprachen-1');
+  assert.equal(friendFinished(guest,guest.invites[0]),true);
+  record(guest,quests['sprachen-1'],{result:'Hola'},day(data.day));
+  assert.equal(firstPrerequisite(guest,quests[data.quest]),null);
+});
+
+test('moving duplicate plans requires a merge and the full backup transfers private beta state',()=>{
+  const state=initial(), fresh=initial();
+  const a=crypto.randomUUID(), b=crypto.randomUUID(), friend=crypto.randomUUID();
+  state.plans=[{id:a,quest:'zeichnen-1',day:'2026-11-21',done:false},{id:b,quest:'zeichnen-1',day:'2026-11-22',done:false}];
+  assert.equal(updatePlan(state,a,'2026-11-22'),'collision');
+  assert.equal(state.plans.length,2);
+  assert.equal(updatePlan(state,a,'2026-11-22',true),'done');
+  state.journeys=['kreativ'];
+  state.language='fr';
+  state.labDrafts.start=['flag','right'];
+  state.invites=[{code:a,quest:'zeichnen-1',day:'2026-11-21',done:false,friendId:friend,friendDone:true}];
+  state.scores=[{mode:'result',quest:'challenge-pass',version:1,week:'2026-11-16',name:'Freund',player:friend,score:5,result:'Treffer'}];
+  const data=parseBackup(profileBackup(state));
+  assert.deepEqual(mergeBackup(fresh,data),{added:3,skipped:0});
+  assert.deepEqual(mergeBackup(fresh,data),{added:0,skipped:3});
+  assert.equal(fresh.plans[0].id,b);
+  assert.deepEqual(fresh.journeys,['kreativ']);
+  assert.equal(fresh.language,'fr');
+  assert.deepEqual(fresh.labDrafts.start,['flag','right']);
+  assert.equal(friendFinished(fresh,fresh.invites[0]),true);
+});
+
+test('German search, equipment and multiday metadata work on the concrete quest',()=>{
+  assert.equal(searchKey('Fußball'),searchKey('fussball'));
+  assert.equal(searchKey('Häkeln'),searchKey('haekeln'));
+  const state=initial();
+  state.preferences.tennis={gear:'basic'};
+  assert.equal(questMatches(byHobby.tennis,quests['tennis-1'],{time:'10'},state),false);
+  assert.equal(quests['garten-2'].elapsedDays,3);
+  assert.match(quests['kochen-1'].guided[1].tip,/Sauce/);
 });

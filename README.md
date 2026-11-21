@@ -6,8 +6,8 @@ Hobbymaxing ist eine deutschsprachige Web-Beta für Hobbys, die du im echten Leb
 
 ## Was du ausprobieren kannst
 
-- 54 Hobby-Einführungen in acht Kategorien, 226 Quests und 54 Wissenschecks.
-- Vier Etappen je Lernpfad: Einstieg, Training, Meilenstein und Meisterstück. Fußball, Tennis, Kochen und Scratch bieten alternative Trainingsquests. Schritte lassen sich einzeln abhaken.
+- 54 Hobby-Einführungen in acht Kategorien, 234 Quests und 54 Wissenschecks.
+- Vier Etappen je Lernpfad: Einstieg, Training, Meilenstein und Meisterstück. Scratch, Sprachenlernen, Kochen und Tennis zeigen eigene Fähigkeiten und weitere Trainings- und Projektaufgaben. Schritte lassen sich einzeln abhaken.
 - Drei Scratch-Aufgaben im Blocklabor sowie interaktive Studios für Pixel Art, Schach und Beatmaking.
 - 39 nach Etappe und Sprache beschriftete Videos und Anleitungen für 22 Hobbys. Das eigentliche Tutorial steht jeweils in der App.
 - Wochendashboard, planbare Quests, Wochenvorhaben und persönliche Wochenserien.
@@ -17,11 +17,13 @@ Hobbymaxing ist eine deutschsprachige Web-Beta für Hobbys, die du im echten Leb
 - Direkt spielbare Quest-Filter, persönliche Hobby-Einstellungen, wiederholbare Streak-Übungen und eine wechselnde Wochenempfehlung.
 - Satzkarten in drei Sprachen mit browserabhängiger Sprachausgabe, konkretes Einstiegsrezept, Schritt-Tipps und eine Sicherungsdatei für den eigenen Fortschritt.
 
-Fortschritt bleibt in der lokalen Speicherung des Browsers. Einladungs- und Ergebnislinks übertragen bewusst freigegebene Daten. Sie enthalten keinen Zugriff auf das private Projektbuch. Ranglisten beruhen auf Selbstauskunft und auf manuell importierten Links. Die App hat keine Konten, serverseitigen Freundeslisten, öffentliche Feeds, Medienuploads oder Zahlungen.
+Fortschritt bleibt in der lokalen Speicherung des Browsers. Die Profilsicherung enthält Quests, Notizen, Termine, Wochenvorhaben, Einladungen, importierte Ranglistenwerte, Einstellungen und Entwürfe. Fotos bleiben in einer browserlokalen Datenbank und werden weder geteilt noch exportiert.
+
+Einladungs- und Ergebnislinks übertragen bewusst freigegebene Daten. Sie enthalten keinen Zugriff auf das private Projektbuch. Die statische Beta auf GitHub Pages verwendet manuell geteilte Ergebnisse. Die Serverversion unterstützt zusätzlich gemeinsame Räume mit Spitznamen und selbst eingetragenen Ergebnissen.
 
 ## Lokal starten
 
-Mit Node.js und ohne zusätzliche Abhängigkeiten:
+Mit Node.js ab 22.13 und ohne zusätzliche Abhängigkeiten:
 
 ```sh
 npm start
@@ -29,6 +31,12 @@ npm test
 ```
 
 Öffne anschließend http://127.0.0.1:4173. Die statische App kann über GitHub Pages direkt vom Branch `main` und dem Stammordner ausgeliefert werden.
+
+## Private Live-Räume hosten
+
+`npm start` stellt Website und Raum-API unter derselben Adresse bereit. Auf einem Node-Host setzt du bei Bedarf `HOST=0.0.0.0`, `PORT` und `HOBBYMAXING_DATA` auf ein dauerhaftes Verzeichnis. Die SQLite-Datenbank liegt in diesem Verzeichnis, standardmäßig in `.hobbymaxing/`. Verwende für eine öffentlich erreichbare Instanz HTTPS.
+
+Öffne eine Challenge mit Punktwertung und erstelle einen privaten Raum. Wer den unvorhersehbaren Link kennt, sieht dieselbe Liste und kann als Gast einen eigenen Wert pflegen. Ein Raum nimmt bis zu 20 Gastprofile auf und läuft nach 30 Tagen ab. Die klassische lokale Rangliste bleibt unabhängig davon nutzbar. GitHub Pages führt keinen Servercode aus.
 
 ## Inhalte erweitern
 

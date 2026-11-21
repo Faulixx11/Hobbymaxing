@@ -1,7 +1,8 @@
 {
   "name": "hobbymaxing",
-  "version": "0.4.0-beta.1",
+  "version": "0.5.0-beta.1",
   "private": true,
+  "engines": {"node": ">=22.13.0"},
   "type": "module",
   "scripts": {
     "start": "node dev-server.mjs",

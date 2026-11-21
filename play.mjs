@@ -1,5 +1,7 @@
-import {byHobby,quests,challenges,hobbies} from './catalog.mjs?v=04';
-import {monday,completed,unlocks,localDate,initial,validDay} from './state.mjs?v=04';
+import {byHobby,quests,challenges,hobbies,journeys} from './catalog.mjs?v=05';
+import {monday,completed,unlocks,localDate,initial,validDay,validShare,rankId,rebuildEntries} from './state.mjs?v=05';
+import {experiments} from './learning.mjs?v=05';
+import {studios} from './studios.mjs';
 
 export const languages = {
   es:{name:'Spanisch',locale:'es-ES',pairs:[['Hola.','Hallo.'],['Buenos días.','Guten Morgen.'],['¿Cómo te llamas?','Wie heißt du?'],['Me llamo Ana.','Ich heiße Ana.'],['Mucho gusto.','Freut mich.']]},
@@ -20,12 +22,19 @@ export const preferences = {
   goal:[['try','Etwas Neues ausprobieren'],['improve','Eine Fähigkeit verbessern']]
 };
 
+export function searchKey(value='') {
+  return value.toLocaleLowerCase('de').replaceAll('ß','ss').replace(/[äöü]/g,letter=>({ä:'ae',ö:'oe',ü:'ue'}[letter])).normalize('NFD').replace(/\p{M}/gu,'').trim();
+}
+export function matchingGear(state,hobby,quest) {
+  return state.preferences[hobby.id]?.gear!=='basic'||(quest.gear||hobby.gear)!=='Mit Ausrüstung';
+}
 export function questMatches(hobby,quest,filters,state) {
   if(!unlocks(state,quest)) return false;
   const place=quest.place||hobby.place;
   const gear=quest.gear||hobby.gear;
-  const query=filters.query?.trim().toLocaleLowerCase('de');
-  return (!query||[hobby.name,hobby.skill,hobby.materials,quest.title].join(' ').toLocaleLowerCase('de').includes(query))
+  const query=searchKey(filters.query);
+  return matchingGear(state,hobby,quest)
+    && (!query||searchKey([hobby.name,hobby.skill,quest.materials||hobby.materials,quest.title].join(' ')).includes(query))
     && (!filters.group||filters.group==='all'||hobby.group===filters.group)
     && (!filters.place||place===filters.place)
     && (!filters.gear||gear===filters.gear)
@@ -36,7 +45,7 @@ export function recommend(state,filters={}) {
   const options=hobbies.flatMap(hobby=>{
     const pref=state.preferences[hobby.id];
     return hobby.quests.filter(quest=>{
-      return questMatches(hobby,quest,filters,state)&&!(pref?.gear==='basic'&&(quest.gear||hobby.gear)==='Mit Ausrüstung');
+      return questMatches(hobby,quest,filters,state);
     }).map(quest=>{
       const done=completed(state,quest.id);
       const last=done&&state.entries.find(entry=>entry.quest===quest.id);
@@ -60,15 +69,15 @@ const nonfuture=value=>validDay(value)&&value>='2020-01-01'&&value<=localDate();
 const safeId=value=>str(value,50)&&/^[a-f0-9-]{8,50}$/i.test(value);
 
 export function profileBackup(state) {
-  const {name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals}=state;
-  return JSON.stringify({format:'hobbymaxing-profile',version:1,profile:{name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals}},null,2);
+  const {name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}=state;
+  return JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}},null,2);
 }
 export function parseBackup(text) {
   if(text.length>1000000) return null;
   try {
     const file=JSON.parse(text);
     const profile=file.profile;
-    if(file.format!=='hobbymaxing-profile'||file.version!==1||!obj(profile)||!str(profile.name,28)||!Array.isArray(profile.entries)||!Array.isArray(profile.active)) return null;
+    if(file.format!=='hobbymaxing-profile'||![1,2].includes(file.version)||!obj(profile)||!str(profile.name,28)||!Array.isArray(profile.entries)||!Array.isArray(profile.active)) return null;
     const restored=initial();
     restored.name=profile.name;
     restored.playerId=safeId(profile.playerId)?profile.playerId:'';
@@ -91,30 +100,74 @@ export function parseBackup(text) {
       if(quests[id]&&version===String(quests[id].version)&&Array.isArray(checks)) restored.stepChecks[id+':'+version]=[...new Set(checks.filter(index=>Number.isInteger(index)&&index>=0&&index<quests[id].steps.length))];
     }
     for(const [day,goal] of Object.entries(obj(profile.goals)?profile.goals:{})) if(validDay(day)&&Number.isInteger(goal)&&goal>=1&&goal<=7) restored.goals[day]=goal;
+    if(Array.isArray(profile.plans)) for(const item of profile.plans) {
+      if(!item||!safeId(item.id)||!quests[item.quest]||!validDay(item.day)||typeof item.done!=='boolean') continue;
+      restored.plans.push({id:item.id,quest:item.quest,day:item.day,done:item.done,entry:safeId(item.entry)?item.entry:undefined});
+    }
+    if(Array.isArray(profile.journeys)) restored.journeys=profile.journeys.filter(id=>journeys.some(item=>item.id===id));
+    if(Array.isArray(profile.invites)) for(const item of profile.invites) {
+      if(!item||!safeId(item.code)||!quests[item.quest]||!validDay(item.day)||typeof item.done!=='boolean') continue;
+      restored.invites.push({code:item.code,quest:item.quest,day:item.day,done:item.done,friendId:safeId(item.friendId)?item.friendId:'',friendDone:item.friendDone===true});
+    }
+    if(Array.isArray(profile.scores)) for(const item of profile.scores) {
+      if(item?.mode==='result'&&validShare(item)&&quests[item.quest].type==='Challenge') {
+        const {mode,quest,version,week,name,player,score,result}=item;
+        restored.scores.push({mode,quest,version,week,name,player,score,result});
+      }
+    }
+    if(Object.hasOwn(languages,profile.language)) restored.language=profile.language;
+    for(const exercise of experiments) {
+      const draft=profile.labDrafts?.[exercise.id];
+      if(Array.isArray(draft)) restored.labDrafts[exercise.id]=draft.filter(block=>exercise.palette.includes(block)).slice(0,12);
+    }
+    for(const [id,studio] of Object.entries(studios)) {
+      const draft=profile.studioDrafts?.[id];
+      if(Array.isArray(draft)) restored.studioDrafts[id]=[...new Set(draft.filter(cell=>Number.isInteger(cell)&&cell>=0&&cell<studio.rows*studio.size&&cell!==studio.origin))];
+    }
+    for(const [id,days] of Object.entries(obj(profile.checkpoints)?profile.checkpoints:{})) {
+      if(quests[id]?.elapsedDays&&Array.isArray(days)) restored.checkpoints[id]=[...new Set(days.filter(nonfuture))].sort();
+    }
+    restored.skipped=['entries','plans','invites','scores'].reduce((count,field)=>count+(Array.isArray(profile[field])?profile[field].length-restored[field].length:0),0);
     return restored;
   } catch { return null; }
 }
 export function mergeBackup(state,profile) {
+  const counts={added:0,skipped:profile.skipped||0};
+  const emptyProfile=!state.playerId&&!state.entries.length;
   state.name ||= profile.name;
   state.playerId ||= profile.playerId;
   state.active=[...new Set([...state.active,...profile.active])];
   const ids=new Set(state.entries.map(entry=>entry.id));
   for(const entry of profile.entries) {
-    if(ids.has(entry.id)) continue;
+    if(ids.has(entry.id)) {counts.skipped++;continue;}
     ids.add(entry.id);
     state.entries.push({...entry});
+    counts.added++;
   }
-  state.entries.sort((a,b)=>b.time.localeCompare(a.time));
-  const rewards=new Set();
-  for(const entry of [...state.entries].reverse()) {
-    if(!entry.xp) continue;
-    const id=entry.quest+(quests[entry.quest].type==='Challenge'?':'+entry.week:'');
-    if(rewards.has(id)) entry.xp=0;
-    rewards.add(id);
+  rebuildEntries(state);
+  for(const item of profile.plans) {
+    if(state.plans.some(plan=>plan.id===item.id||plan.quest===item.quest&&plan.day===item.day&&plan.done===item.done)) counts.skipped++;
+    else {state.plans.push(item); counts.added++;}
   }
+  for(const item of profile.invites) {
+    if(!emptyProfile&&state.playerId!==profile.playerId||state.invites.some(invite=>invite.code===item.code)) counts.skipped++;
+    else {state.invites.push(item); counts.added++;}
+  }
+  for(const item of profile.scores) {
+    const index=state.scores.findIndex(score=>rankId(score)===rankId(item));
+    if(item.player&&item.player===state.playerId||index>=0&&(item.score===null||state.scores[index].score>=item.score)) counts.skipped++;
+    else if(index>=0) {state.scores[index]=item; counts.added++;}
+    else {state.scores.push(item); counts.added++;}
+  }
+  state.journeys=[...new Set([...state.journeys,...profile.journeys])];
+  if(emptyProfile) state.language=profile.language;
+  state.labDrafts={...profile.labDrafts,...state.labDrafts};
+  state.studioDrafts={...profile.studioDrafts,...state.studioDrafts};
+  for(const [id,days] of Object.entries(profile.checkpoints)) state.checkpoints[id]=[...new Set([...(state.checkpoints[id]||[]),...days])].sort();
   state.practice={...profile.practice,...state.practice};
   state.practiceDays={...profile.practiceDays,...state.practiceDays};
   state.preferences={...profile.preferences,...state.preferences};
   state.goals={...profile.goals,...state.goals};
   for(const [key,checks] of Object.entries(profile.stepChecks)) state.stepChecks[key]=[...new Set([...(state.stepChecks[key]||[]),...checks])];
+  return counts;
 }

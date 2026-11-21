@@ -1,7 +1,7 @@
-import {byHobby,quests} from './catalog.mjs?v=04';
+import {byHobby,quests} from './catalog.mjs?v=05';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
-import {nextQuest} from './state.mjs?v=04';
+import {nextQuest} from './state.mjs?v=05';
 
 export const stages = ['Einstieg','Training','Meilenstein','Meisterstück'];
 
@@ -15,7 +15,7 @@ export function questionOptions(id) {
 
 export const helpTopics = [
   ['Wie schalte ich neue Level frei?','Im Lernpfad schließt du zuerst den Einstieg ab. Wähle danach eine freigeschaltete Trainingsquest und erreiche den Meilenstein. Danach kannst du dein Meisterstück angehen. Wissenschecks und Blocklabor geben eigene Lern-XP.'],
-  ['Wie zählt die Streak?','Eine abgeschlossene Quest oder eine neue App-Übung zählt für den Tag. Mehrere Abschlüsse am gleichen Tag zählen als ein Tag. Für das Wochenziel zählen weiterhin Tage mit abgeschlossenen Quests.'],
+  ['Wie zählt die Streak?','Für die Tagesstreak zählt eine abgeschlossene Quest, eine App-Übung oder eine gelungene Wiederholung. Pro Tag wird einmal gezählt. Das Wochenziel zählt Tage mit einer abgeschlossenen Praxisquest.'],
   ['Wie funktionieren Rankings?','Jede Sport-Challenge hat eigene Wertungsregeln. Öffne eine Challenge, trage ein Ergebnis ein und teile den Ergebnislink. Freunde können den Link in ihre Rangliste importieren. Die Ansicht zeigt den besten Wert pro Person und Zeitraum.'],
   ['Wo wird mein Fortschritt gespeichert?','Fortschritt, Übungshäkchen und private Ergebnisse liegen im aktuellen Browser. Ein geteiltes Ergebnis enthält deinen Anzeigenamen und Ergebniswert. Beim Löschen der Browserdaten geht der lokale Fortschritt verloren.'],
   ['Wie kann ich eine persönliche Frage stellen?','Du kannst den Lerncoach fragen oder im GitHub-Projekt eine Frage beziehungsweise einen Fehler melden. GitHub-Issues sind öffentlich. Verwende bei deiner Frage daher keine privaten Daten.']

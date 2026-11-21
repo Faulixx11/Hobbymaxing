@@ -1,6 +1,6 @@
-import { byHobby, quests } from './catalog.mjs?v=04';
+import { byHobby, quests } from './catalog.mjs?v=05';
 
-export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, practiceDays:{}, preferences:{}, stepChecks:{}});
+export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, practiceDays:{}, preferences:{}, stepChecks:{}, language:'es', labDrafts:{}, studioDrafts:{}, checkpoints:{}});
 export const key = 'hobbymaxing-v1';
 export function load(storage) {
   try { return {...initial(), ...JSON.parse(storage.getItem(key) || '{}')}; } catch { return initial(); }
@@ -43,7 +43,7 @@ export function unlocks(state, quest) {
   return quest.any ? quest.requires.some(id=>completed(state,id)) : quest.requires.every(id=>completed(state,id));
 }
 export function level(state, hobby) {
-  if (completed(state,hobby.id+'-meisterwerk')) return 4;
+  if (hobby.quests.some(quest=>quest.stage===4&&completed(state,quest.id))) return 4;
   if (completed(state,hobby.id+'-3')) return 3;
   return completed(state,hobby.id+'-1') ? 2 : 1;
 }
@@ -78,7 +78,7 @@ export function record(state, quest, values, now=new Date()) {
   const weekly=quest.type==='Challenge';
   const week=monday(day);
   if (state.entries.some(entry=>entry.quest===quest.id && entry.day===day && entry.invite===(values.invite||''))) return null;
-  if (quest.max && (!Number.isInteger(values.score)||values.score<0||values.score>quest.max)) return null;
+  if (!validResult(quest,values)) return null;
   const condition=weekly?'standard':String(values.condition||'').trim().toLowerCase().replace(/\s+/g,' ');
   const reference={quest:quest.id,version:quest.version,condition};
   const comparable=state.entries.filter(entry=>sameConditions(entry,reference)&&entry.score!=null);
@@ -97,13 +97,85 @@ export function record(state, quest, values, now=new Date()) {
   }
   return entry;
 }
+export function validResult(quest,values) {
+  return quest.max?Number.isInteger(values.score)&&values.score>=0&&values.score<=quest.max&&
+    (quest.type==='Challenge'||Boolean(String(values.condition||'').trim())):Boolean(String(values.result||'').trim());
+}
+export function changeEntry(state,id,values) {
+  const entry=state.entries.find(item=>item.id===id);
+  if(!entry) return false;
+  const quest=quests[entry.quest];
+  if(values) {
+    if(!validResult(quest,values)) return false;
+    entry.score=quest.max?values.score:null;
+    entry.result=String(values.result||'').trim().slice(0,160);
+    entry.note=String(values.note||'').trim().slice(0,420);
+    if(quest.max&&quest.type!=='Challenge') entry.condition=String(values.condition).trim().toLowerCase().replace(/\s+/g,' ').slice(0,100);
+  } else {
+    state.entries=state.entries.filter(item=>item.id!==id);
+    for(const plan of state.plans.filter(item=>item.entry===id)) {plan.done=false; delete plan.entry;}
+    const invitation=state.invites.find(item=>item.code===entry.invite);
+    if(invitation) invitation.done=state.entries.some(item=>item.invite===entry.invite);
+  }
+  rebuildEntries(state);
+  return true;
+}
+export function rebuildEntries(state) {
+  const xp=new Set(), bests=new Map();
+  state.entries.sort((a,b)=>b.time.localeCompare(a.time));
+  for(const entry of [...state.entries].reverse()) {
+    const quest=quests[entry.quest];
+    const award=entry.quest+(quest.type==='Challenge'?':'+entry.week:'');
+    entry.xp=xp.has(award)?0:quest.xp;
+    xp.add(award);
+    if(entry.score===null) continue;
+    const key=JSON.stringify([entry.quest,entry.version,entry.condition]);
+    const prior=bests.get(key);
+    entry.previous=prior?.last??null;
+    entry.best=prior?.best??null;
+    bests.set(key,{last:entry.score,best:Math.max(entry.score,prior?.best??0)});
+  }
+}
+export function updatePlan(state,id,day,merge=false) {
+  const plan=state.plans.find(item=>item.id===id&&!item.done);
+  if(!plan) return 'missing';
+  const collision=state.plans.find(item=>item.id!==id&&!item.done&&item.quest===plan.quest&&item.day===day);
+  if(collision&&!merge) return 'collision';
+  if(collision) state.plans=state.plans.filter(item=>item.id!==id);
+  else plan.day=day;
+  return 'done';
+}
+export function inviteJoin(state,data) {
+  if(data?.mode!=='invite'||!validShare(data)) return false;
+  state.playerId ||= crypto.randomUUID();
+  const existing=state.invites.find(item=>item.code===data.code);
+  if(existing&&existing.quest!==data.quest) return false;
+  const same=data.sender===state.playerId;
+  if(existing) {
+    if(data.sender&&!same&&(!existing.friendId||existing.friendId===data.sender)) {
+      existing.friendId=data.sender;
+      existing.friendDone=data.done;
+    }
+  } else if(!same) {
+    state.invites.unshift({code:data.code,quest:data.quest,day:data.day,done:false,friendId:data.sender||'',friendDone:Boolean(data.sender&&data.done)});
+  } else return false;
+  return true;
+}
+export function friendFinished(state,invite) {
+  return Boolean(invite.friendId&&invite.friendId!==state.playerId&&invite.friendDone);
+}
+export function firstPrerequisite(state,quest) {
+  if(unlocks(state,quest)) return null;
+  const candidate=quest.requires.map(id=>quests[id]).find(item=>item&&!completed(state,item.id));
+  return candidate&&(firstPrerequisite(state,candidate)||candidate);
+}
 export function badges(state) {
   const hobbiesStarted=new Set(state.entries.map(entry=>quests[entry.quest]?.hobby).filter(Boolean));
   return [
     ['✦','Erster Schritt',state.entries.length>0],
     ['◈','Drei Hobbys ausprobiert',hobbiesStarted.size>=3],
     ['◆','Erstes Projekt',state.entries.some(entry=>quests[entry.quest]?.type==='Projekt')],
-    ['◉','Gemeinsam unterwegs',state.invites.some(invite=>invite.done&&invite.friendDone)],
+    ['◉','Gemeinsam unterwegs',state.invites.some(invite=>invite.done&&friendFinished(state,invite))],
     ['☀','Wochenziel erreicht',streaks(state).best>0]
   ];
 }
@@ -136,7 +208,7 @@ export function decode(raw) {
 export function validShare(data) {
   if (!data||!Object.hasOwn(quests,data.quest)||typeof data.name!=='string'||data.name.length>28) return false;
   const quest=quests[data.quest];
-  if (data.mode==='invite') return typeof data.code==='string'&&/^[a-z0-9-]{8,42}$/i.test(data.code)&&validDay(data.day)&&typeof data.done==='boolean';
+  if (data.mode==='invite') return typeof data.code==='string'&&/^[a-z0-9-]{8,42}$/i.test(data.code)&&validDay(data.day)&&typeof data.done==='boolean'&&(data.sender===undefined||(typeof data.sender==='string'&&/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(data.sender)));
   const versionOK=quest.type==='Challenge'?data.version===quest.version:Number.isInteger(data.version)&&data.version>=1&&data.version<=quest.version;
   if (data.mode!=='result'||!versionOK||!validDay(data.week)||monday(data.week)!==data.week||typeof data.result!=='string'||data.result.length>160) return false;
   if (data.player!==undefined&&(typeof data.player!=='string'||!/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(data.player))) return false;

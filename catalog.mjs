@@ -1,4 +1,5 @@
 import { masterProjects } from './projects.mjs';
+import { questDetails, skillQuests } from './guidance.mjs';
 
 export const groups = [
   ['sport','Sport & Bewegung','↗'], ['natur','Natur & Draußen','❋'],
@@ -115,7 +116,6 @@ firstLanguage.steps=['Wähle Spanisch, Französisch oder Englisch. Lies die erst
 firstLanguage.version=2;
 const firstCooking=hobbies.find(hobby=>hobby.id==='kochen').quests[0];
 firstCooking.materials='100 g Nudeln, 150 g passierte Tomaten, 1 Liter Wasser, Salz, Topf, kleine Pfanne oder zweiter Topf und ein Sieb';
-firstCooking.steps=['Bring das Wasser zum Kochen, salze es und gib die Nudeln hinein. Stell einen Timer nach der Packungsangabe.','Erwärme die passierten Tomaten parallel etwa fünf Minuten bei kleiner Hitze und rühre gelegentlich. Würze am Ende mit etwas Salz.','Koste eine Nudel kurz vor Ablauf der Zeit. Ist sie angenehm bissfest, gieße sie ab und mische sie mit der heißen Sauce.'];
 firstCooking.version=2;
 
 for (const hobby of hobbies) {
@@ -127,6 +127,35 @@ for (const hobby of hobbies) {
   for (const quest of hobby.quests) {
     quest.stage ||= quest.requires.length===0?1:quest.requires.includes(hobby.id+'-1')?2:3;
   }
+  const skillNames={scratch:['Ereignisse','Steuerung','Spielregeln','Projekt'],sprachen:['Aussprache','Dialog','Freies Sprechen','Rollenspiel'],kochen:['Garprobe','Geschmack','Rezept variieren','Küchenorganisation'],tennis:['Ballgefühl','Schlägerkontrolle','Ballwechsel','Matchvorbereitung']};
+  for(const quest of hobby.quests) if(skillNames[hobby.id]) quest.skill=skillNames[hobby.id][quest.stage-1];
+  for(const task of skillQuests[hobby.id]||[]) {
+    const stage=task.stage||2;
+    const lesson={hobby:hobby.id,version:1,xp:stage===4?100:45,adapt:fallback[hobby.group],max:0,type:stage===4?'Projekt':'Training',stage,...task};
+    if(stage===2) {
+      const milestone=hobby.quests.find(quest=>quest.stage===3);
+      milestone.requires.push(task.id);
+      milestone.any=true;
+      hobby.quests.splice(hobby.quests.indexOf(milestone),0,lesson);
+    } else hobby.quests.push(lesson);
+  }
+  for(const quest of hobby.quests) {
+    const detail=questDetails[quest.id];
+    if(detail) {quest.guided=detail.steps; quest.steps=detail.steps.map(step=>step.text);}
+  }
+}
+
+const questRequirements={
+  'tennis-1':{place:'Draußen',materials:'Schläger, Tennisball und freie Fläche'},
+  'tennis-3':{materials:'Erlaubter Tennisplatz, zwei Schläger, langsamer Trainingsball und eine mitspielende Person'},
+  'tennis-wand':{materials:'Schläger, Tennisball und geeignete, erlaubte Tenniswand'},
+  'sprachen-1':{gear:'Ohne Ausrüstung'},
+  'garten-2':{elapsedDays:3},'garten-3':{elapsedDays:8,checkpointGap:7},'astronomie-2':{elapsedDays:3},'yoga-meisterwerk':{elapsedDays:2},
+  'mealprep-meisterwerk':{elapsedDays:7},'garten-meisterwerk':{elapsedDays:7},'astronomie-meisterwerk':{elapsedDays:3},
+  'tennis-meisterwerk':{title:'Erster Mini-Punkt mit Zielzone',materials:'Tennisplatz, zwei Schläger, Ball und eine mitspielende Person',steps:['Markiert eine breite Zielzone und beginnt mit einem leichten Zuspiel.','Wechselt nach jedem Versuch die Person, die den ersten platzierten Ball spielt.','Notiert, mit welchem Treffpunkt ihr in drei Durchgängen am häufigsten die Zielzone erreicht.'],result:'Ein kontrollierter Ballwechsel mit bewusst platzierter Vorhand'}
+};
+for(const hobby of hobbies) for(const quest of hobby.quests) {
+  Object.assign(quest,{place:quest.place||hobby.place,gear:quest.gear||hobby.gear},questRequirements[quest.id]);
 }
 
 export const byHobby = Object.assign(Object.create(null),Object.fromEntries(hobbies.map(hobby=>[hobby.id,hobby])));
