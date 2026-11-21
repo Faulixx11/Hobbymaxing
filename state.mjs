@@ -1,6 +1,6 @@
-import { byHobby, quests } from './catalog.mjs?v=03';
+import { byHobby, quests } from './catalog.mjs?v=04';
 
-export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, stepChecks:{}});
+export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, practiceDays:{}, preferences:{}, stepChecks:{}});
 export const key = 'hobbymaxing-v1';
 export function load(storage) {
   try { return {...initial(), ...JSON.parse(storage.getItem(key) || '{}')}; } catch { return initial(); }
@@ -54,12 +54,13 @@ export function totalXp(state) {
   return state.entries.reduce((sum,entry)=>sum+entry.xp,0)+Object.values(state.practice).reduce((sum,entry)=>sum+entry.xp,0);
 }
 export function earnPractice(state,id,xp,today=localDate()) {
+  state.practiceDays[today]=true;
   if(Object.hasOwn(state.practice,id)) return false;
   state.practice[id]={day:today,xp};
   return true;
 }
 export function dailyStreak(state,today=localDate()) {
-  const days=[...new Set([...state.entries.map(entry=>entry.day),...Object.values(state.practice).map(entry=>entry.day)])].filter(day=>day<=today).sort();
+  const days=[...new Set([...state.entries.map(entry=>entry.day),...Object.values(state.practice).map(entry=>entry.day),...Object.keys(state.practiceDays)])].filter(day=>day<=today).sort();
   let best=0, running=0, prior='';
   for(const day of days) {
     running=prior&&shift(prior,1)===day?running+1:1;
@@ -85,7 +86,7 @@ export function record(state, quest, values, now=new Date()) {
   const entry={
     id:crypto.randomUUID(), ...reference, day, week, time:now.toISOString(),
     score:quest.max?values.score:null, result:String(values.result||'').trim().slice(0,160),
-    note:String(values.note||'').trim().slice(0,420), invite:values.invite||'', xp:hasReward?0:quest.xp,
+    note:String(values.note||'').trim().slice(0,420), confidence:values.confidence==='retry'?'retry':values.confidence==='ready'?'ready':'', invite:values.invite||'', xp:hasReward?0:quest.xp,
     previous:comparable[0]?.score??null, best:comparable.length?Math.max(...comparable.map(item=>item.score)):null
   };
   state.playerId ||= crypto.randomUUID();
@@ -136,11 +137,12 @@ export function validShare(data) {
   if (!data||!Object.hasOwn(quests,data.quest)||typeof data.name!=='string'||data.name.length>28) return false;
   const quest=quests[data.quest];
   if (data.mode==='invite') return typeof data.code==='string'&&/^[a-z0-9-]{8,42}$/i.test(data.code)&&validDay(data.day)&&typeof data.done==='boolean';
-  if (data.mode!=='result'||data.version!==quest.version||!validDay(data.week)||monday(data.week)!==data.week||typeof data.result!=='string'||data.result.length>160) return false;
+  const versionOK=quest.type==='Challenge'?data.version===quest.version:Number.isInteger(data.version)&&data.version>=1&&data.version<=quest.version;
+  if (data.mode!=='result'||!versionOK||!validDay(data.week)||monday(data.week)!==data.week||typeof data.result!=='string'||data.result.length>160) return false;
   if (data.player!==undefined&&(typeof data.player!=='string'||!/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(data.player))) return false;
   return quest.max?Number.isInteger(data.score)&&data.score>=0&&data.score<=quest.max:data.score===null;
 }
-function validDay(day) {
+export function validDay(day) {
   return typeof day==='string' && /^\d{4}-\d{2}-\d{2}$/.test(day) && localDate(new Date(day+'T12:00:00'))===day;
 }
 export function rankId(data) {

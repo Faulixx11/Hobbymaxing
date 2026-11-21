@@ -1,9 +1,10 @@
-import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=03';
-import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak} from './state.mjs?v=03';
+import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=04';
+import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak} from './state.mjs?v=04';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
 import {stages,questionOptions,helpTopics,coachReply,blocks,experiments,runBlocks} from './learning.mjs';
 import {studios,studioCell,checkStudio,playBeat} from './studios.mjs';
+import {languages,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup} from './play.mjs';
 
 const main=document.querySelector('#main');
 const nav=document.querySelector('#nav');
@@ -13,6 +14,7 @@ let state=load(localStorage);
 let filter={group:'all',query:'',place:'',gear:'',time:'',stage:''};
 let toastTimer;
 let coachHistory=[];
+let language='es';
 const labDrafts={};
 const labRuns={};
 const quizReplies={};
@@ -61,6 +63,14 @@ function save(change,{refresh=true}={}) {
   if(refresh) render();
   return true;
 }
+function awardPractice(id,xp) {
+  const today=localDate();
+  if(state.practiceDays[today]&&state.practice[id]) return;
+  let first;
+  if(save(latest=>{first=earnPractice(latest,id,xp,today);},{refresh:false})) {
+    alertUser(first?'+'+xp+' XP · Übung bestanden':'Wiederholung zählt für deine Streak.');
+  }
+}
 function pathCard(hobby,{image=false}={}) {
   const hits=hobby.quests.filter(quest=>completed(state,quest.id)).length;
   return `<a class="hobby-card surface" href="#pfad/${hobby.id}">
@@ -87,8 +97,10 @@ function streakCard() {
 }
 function todayPage() {
   const active=state.active.map(id=>byHobby[id]).filter(Boolean);
-  const recommended=active.map(hobby=>nextQuest(state,hobby)).find(Boolean);
-  const suggested=recommended?byHobby[recommended.hobby]:byHobby.wandern;
+  const suggestion=recommend(state);
+  const recommended=active.length?suggestion?.quest:undefined;
+  const suggested=suggestion?.hobby;
+  const challenge=featuredChallenge();
   const heroLink=recommended?'quest/'+recommended.id:'entdecken';
   return `<div class="dashboard"><div class="dash-main"><section class="hero mountain">
     <div class="hero-content"><p class="eyebrow"><span>✳</span> ${recommended?'DEIN NÄCHSTER SCHRITT':'DEIN ABENTEUER BEGINNT'}</p><h1>${recommended?esc(recommended.title):'Raus aus dem Alltag.<br><em>Rein ins Abenteuer.</em>'}</h1>
@@ -99,17 +111,19 @@ function todayPage() {
     <div class="hobby-grid">${(active.length?active.slice(0,3):featured.slice(0,3).map(id=>byHobby[id])).map(hobby=>pathCard(hobby,{image:true})).join('')}</div></section>
     <section class="section surface practice-promo"><div class="tile-icon lilac">⌘</div><div><h2>Teste dein Können direkt hier</h2><p>Programmiere deine erste Figur im Scratch-Blocklabor oder mache einen Wissenscheck in deinem Lernpfad.</p></div>${link('Blocklabor öffnen','labor','button secondary')}</section>
     </div><aside class="dashboard-aside" aria-label="Woche und Challenge">${streakCard()}${weekCard()}
-    <section class="challenge-teaser surface"><p class="eyebrow"><span>✦</span> WOCHEN-CHALLENGE</p><div class="challenge-ball" aria-hidden="true">⚽</div><h2>Die Pass-Challenge</h2><p>Zehn Versuche. Wie oft triffst du das Ziel?</p>${link('Challenge ansehen','challenge/challenge-pass','button dark full')}</section></aside></div>`;
+    <section class="challenge-teaser surface"><p class="eyebrow"><span>✦</span> WOCHEN-CHALLENGE</p><div class="challenge-ball" aria-hidden="true">${challenge.icon}</div><h2>${challenge.title}</h2><p>${challenge.result} · ${challenge.minutes} Min.</p>${link('Challenge ansehen','challenge/'+challenge.id,'button dark full')}</section></aside></div>`;
 }
 function filterSelect(name,label,options) {
   return `<label>${label}<select name="${name}"><option value="">Alle</option>${options.map(([value,word])=>`<option value="${value}" ${filter[name]===value?'selected':''}>${word}</option>`).join('')}</select></label>`;
 }
 function catalogResults() {
+  if(filter.time||filter.place||filter.gear||filter.stage) {
+    const matches=hobbies.flatMap(hobby=>hobby.quests.filter(quest=>questMatches(hobby,quest,filter,state)).map(quest=>({hobby,quest})));
+    return `<p class="result-count" role="status">${matches.length} direkt spielbare ${matches.length===1?'Quest':'Quests'}</p>
+    ${matches.length?`<div class="hobby-grid catalog-grid">${matches.map(({hobby,quest})=>`<a class="hobby-card surface" href="#quest/${quest.id}"><div class="card-art ${hobby.group}"><span>${hobby.icon}</span></div><div class="card-content"><p class="eyebrow">${hobby.name}</p><h3>${quest.title}</h3><div class="card-meta"><span>${quest.minutes} Min.</span><span>${quest.type}</span></div></div></a>`).join('')}</div>`:empty('Derzeit passt keine freigeschaltete Quest. Passe einen Filter an oder spiele einen Einstieg.') }`;
+  }
   const query=filter.query.trim().toLocaleLowerCase('de');
-  const matches=hobbies.filter(hobby=>
-    (!query||[hobby.name,hobby.skill,groupNames[hobby.group],hobby.materials,...hobby.quests.map(quest=>quest.title)].join(' ').toLocaleLowerCase('de').includes(query)) &&
-    (filter.group==='all'||hobby.group===filter.group) && (!filter.place||hobby.place===filter.place) && (!filter.gear||hobby.gear===filter.gear) &&
-    hobby.quests.some(quest=>(!filter.time||quest.minutes<=Number(filter.time))&&(!filter.stage||quest.type===filter.stage)));
+  const matches=hobbies.filter(hobby=>(filter.group==='all'||hobby.group===filter.group)&&(!query||[hobby.name,hobby.skill,groupNames[hobby.group],hobby.materials,...hobby.quests.map(quest=>quest.title)].join(' ').toLocaleLowerCase('de').includes(query)));
   return `<p class="result-count" role="status">${matches.length} ${matches.length===1?'Hobby':'Hobbys'}</p>${matches.length?`<div class="hobby-grid catalog-grid">${matches.map(hobby=>pathCard(hobby)).join('')}</div>`:empty('Keine passenden Hobbys. Ändere einen Filter oder suche nach einem anderen Begriff.') }`;
 }
 function discoverPage() {
@@ -151,10 +165,17 @@ function pathPage(id) {
       <section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Direkt in der App üben</h2><p>Teste eine Grundregel dieses Hobbys. Beim ersten Bestehen bekommst du 20 XP.</p>${link(mastered?'Wissenscheck wiederholen':'Wissenscheck starten','wissen/'+id,'button primary')}
         ${id==='scratch'?`<h3>Scratch-Blocklabor</h3><p>Drei interaktive Aufgaben zu Ereignissen, Bewegung und Punkten.</p>${link('Blocklabor öffnen','labor','button secondary')}`:''}
         ${Object.hasOwn(studios,id)?`<h3>${studios[id].title}</h3><p>Probier die Technik direkt aus und hol dir Rückmeldung.</p>${link('Übungsstudio öffnen','studio/'+id,'button secondary')}`:''}</section>
-      <section class="surface utility"><h2>Was du brauchst</h2><p>${esc(hobby.materials)}</p><h3>Wenn du hängen bleibst</h3><p>${lesson.trouble}</p>${link('Lerncoach fragen','hilfe/'+id,'text-button')}</section>
+      <section class="surface utility"><h2>Was du brauchst</h2><p>${esc(hobby.materials)}</p><h3>Wenn du hängen bleibst</h3><p>${lesson.trouble}</p>${link('Lerncoach fragen','hilfe/'+id,'text-button')}${hobbyPreferences(hobby)}</section>
       ${resourceList(id)}
     </aside>
   </div>`;
+}
+function hobbyPreferences(hobby) {
+  const pref=state.preferences[hobby.id]||{};
+  const fields={experience:'Deine Vorerfahrung',gear:'Deine Ausrüstung',goal:'Dein Ziel'};
+  return `<details><summary>Empfehlungen für dieses Hobby anpassen</summary><form data-form="preferences" data-value="${hobby.id}">
+  ${Object.entries(preferences).map(([field,choices])=>`<label>${fields[field]}<select name="${field}">${choices.map(([value,label])=>`<option value="${value}" ${pref[field]===value?'selected':''}>${label}</option>`).join('')}</select></label>`).join('')}
+  <button class="button secondary">Für „Heute“ speichern</button></form></details>`;
 }
 function resourceList(id,stage) {
   const items=(resources[id]||[]).filter(([level])=>!stage||stage===level);
@@ -174,21 +195,32 @@ function questPage(id, inviteCode='') {
     ${questInformation(quest,hobby)}
     ${locked?`<div class="notice">Diese Quest wird im Lernpfad freigeschaltet. ${link('Zum Lernpfad','pfad/'+hobby.id,'text-button')}</div>`:
       `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:''),'button primary')} ${btn('Einplanen','plan',id,'button secondary')} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
-  </section><aside class="academy-sidebar"><section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Dein Ergebnis</h2><p>${quest.result}</p><h3>So passt du es an</h3><p>${quest.adapt}</p><h3>Danach</h3><p>${quest.stage===4?'Halte fest, was du jetzt selbstständig kannst und was du beim nächsten Versuch ändern würdest.':'Schließe die Übung ab und wähle die nächste verfügbare Quest im Lernpfad.'}</p>${btn('Quest-Link kopieren','copy-quest',quest.id,'text-button')} ${link('Lerncoach fragen','hilfe/'+hobby.id,'text-button')}</section>${resourceList(hobby.id,quest.stage)}</aside></div>`;
+  </section><aside class="academy-sidebar"><section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Dein Ergebnis</h2><p>${quest.result}</p><h3>So passt du es an</h3><p>${quest.adapt}</p><h3>Danach</h3><p>${quest.stage===4?'Halte fest, was du jetzt selbstständig kannst und was du beim nächsten Versuch ändern würdest.':'Schließe die Übung ab und wähle die nächste verfügbare Quest im Lernpfad.'}</p>${btn('Quest-Link kopieren','copy-quest',quest.id,'text-button')} ${link('Lerncoach zu dieser Quest fragen','hilfe/'+hobby.id+'/'+quest.id,'text-button')}</section>${resourceList(hobby.id,quest.stage)}</aside></div>`;
+}
+function phraseCards() {
+  const selected=languages[language];
+  return `<div class="phrase-tabs actions">${Object.keys(languages).map(id=>`<button type="button" class="pill" aria-pressed="${language===id}" data-action="language" data-value="${id}">${languages[id].name}</button>`).join('')}</div>
+  <details open><summary>Fünf Sätze mit Übersetzung</summary><ul class="plain-list">${selected.pairs.map(([phrase,meaning],index)=>`<li><div><strong lang="${selected.locale}">${phrase}</strong><p>${meaning}</p></div>${btn('Anhören','speak',language+'~'+index,'button secondary')}</li>`).join('')}</ul></details>`;
 }
 function questInformation(quest,hobby) {
   const checks=state.stepChecks[quest.id+':'+quest.version]||[];
   const open=unlocks(state,quest);
+  const guide=starterGuides[quest.id];
   return `<div class="tags">${chip(svg('time')+' '+quest.minutes+' Min.') }${chip(svg('bolt')+' +'+quest.xp+' XP') }${chip(quest.type)}</div>
   <h2>Was du brauchst</h2><p>${quest.materials||hobby.materials}</p>
   <h2>Was du übst</h2><p>${lessons[hobby.id].technique}</p>
+  ${guide?.intro?`<p class="notice">${guide.intro}</p>`:''}
+  ${quest.id==='sprachen-1'?`<section class="phrase-section"><h2>Wähle deine Sprache</h2><p>Mit „Anhören“ liest dir dein Browser den Satz vor, wenn eine passende Stimme verfügbar ist.</p><div id="phrase-cards">${phraseCards()}</div></section>`:''}
+  ${quest.id==='scratch-1'?`<ol class="program" aria-label="Beispiel für zwei verbundene Blöcke"><li><span class="block event">Wenn grüne Flagge angeklickt</span></li><li><span class="block move">Gehe 10er-Schritt</span></li></ol>`:''}
   ${hobby.id==='scratch'?`<p>${link('Im Blocklabor vorüben','labor/'+(experiments[quest.stage-1]?.id||'sammeln'),'button secondary')} <a class="text-button" href="https://scratch.mit.edu/projects/editor/" target="_blank" rel="noopener noreferrer">Scratch-Editor öffnen</a></p>`:''}
   <h2>Schritt für Schritt</h2>
   ${open?`<p class="step-count" id="step-progress" aria-live="polite">${checks.length} / ${quest.steps.length} Schritte abgehakt</p>`:''}
   <ol class="steps guided-steps">${quest.steps.map((step,index)=>{
     const sentence=esc(/[.!?]$/.test(step)?step:step+'.');
-    return `<li>${open?`<label><input type="checkbox" data-quest-step="${quest.id}" value="${index}" ${checks.includes(index)?'checked':''}><span>${sentence}</span></label>`:sentence}</li>`;
-  }).join('')}</ol>`;
+    return `<li>${open?`<label><input type="checkbox" data-quest-step="${quest.id}" value="${index}" ${checks.includes(index)?'checked':''}><span>${sentence}</span></label>`:sentence}
+    ${open&&guide?.tips[index]?`<details><summary>Tipp zu Schritt ${index+1}</summary><p>${guide.tips[index]}</p></details>`:''}</li>`;
+  }).join('')}</ol>
+  <h3>Woran du merkst, dass es geklappt hat</h3><p>${guide?.success||quest.result+'. Vergleiche dein Ergebnis mit dem Ziel der Quest.'}</p>`;
 }
 function missing() {
   return titleBlock('HOBBYMAXING','Seite nicht gefunden.','Entdecke einen anderen Lernpfad.')+link('Zum Hobby-Katalog','entdecken','button primary');
@@ -257,14 +289,16 @@ function studioPage(id) {
   ${reply?`<div id="studio-feedback" tabindex="-1" class="feedback ${reply.pass?'positive':'try-again'}"><strong>${reply.pass?'Aufgabe bestanden!':'Schau noch einmal hin.'}</strong><p>${reply.pass?'Alle Felder sind richtig gesetzt.':reply.missing+' fehlen, '+reply.extra+' zusätzlich markiert.'}</p></div>`:''}</section>
   ${studio.preview?`<aside class="surface utility"><h2>Vorlage</h2><div class="studio-board preview grid-5" role="img" aria-label="Pfeil nach oben aus elf Pixeln">${cells.map(index=>`<span class="studio-cell ${studio.solution.includes(index)?'filled':''}"></span>`).join('')}</div></aside>`:''}</div>`;
 }
-function supportPage(id) {
+function supportPage(id,questId) {
   const hobby=byHobby[id];
+  const focusQuest=quests[questId]?.hobby===id?quests[questId]:null;
   const starters=hobby?['Was brauche ich?','Wie starte ich?','Ich hänge fest','Gibt es ein Video?']:['Wie sammle ich XP?','Wie funktioniert die Streak?','Wie funktionieren Rankings?'];
   return `${titleBlock('HILFE & SUPPORT',hobby?'Lerncoach für '+hobby.name:'Wie können wir dir helfen?','Frage den Lerncoach zu deinem Hobby, einer Aufgabe oder deinem Spielfortschritt.')}
   <div class="detail-grid"><section class="surface mission coach-panel"><div class="section-title"><div><h2>Lerncoach</h2><p>Antworten aus den Hobby-Anleitungen und Spielregeln. Deine Fragen bleiben in diesem Tab.</p></div></div>
-  <form data-form="coach" data-value="${hobby?.id||''}">
+  ${focusQuest?`<p class="notice">Aktuelle Quest: ${focusQuest.title}</p>`:''}
+  <form data-form="coach" data-quest="${focusQuest?.id||''}">
     <label>Hobby<select name="hobby"><option value="">Allgemeine Hilfe</option>${hobbies.map(item=>`<option value="${item.id}" ${item===hobby?'selected':''}>${item.name}</option>`).join('')}</select></label>
-    <div class="actions coach-suggestions">${starters.map(prompt=>btn(esc(prompt),'coach-prompt',prompt,'pill')).join('')}</div>
+    <div class="actions coach-suggestions">${(focusQuest?['Tipp für Schritt 1','Tipp für Schritt 2','Tipp für Schritt 3']:starters).map(prompt=>btn(esc(prompt),'coach-prompt',prompt,'pill')).join('')}</div>
     <label>Deine Frage<textarea name="question" maxlength="300" required placeholder="Was möchtest du wissen?"></textarea></label><button class="button primary">Frage stellen</button>
   </form><div class="coach-log" aria-live="polite">${coachHistory.map(item=>`<article><p class="coach-question"><strong>Du${item.name?' · '+item.name:''}</strong><br>${esc(item.question)}</p><div class="coach-reply"><strong>Lerncoach</strong><p>${esc(item.text)}</p>${item.route?link('Passenden Bereich öffnen',item.route,'text-button'):''}</div></article>`).join('')}</div></section>
   <aside class="academy-sidebar"><section class="surface utility"><h2>Häufige Fragen</h2>${helpTopics.map(([question,answer])=>`<details><summary>${question}</summary><p>${answer}</p></details>`).join('')}</section>
@@ -295,9 +329,11 @@ function rankingPage(view) {
 }
 
 function challengeIndex() {
+  const highlight=featuredChallenge();
   return `${titleBlock('CHALLENGES','Zusammen macht’s mehr Spaß.','Wähle eine Wochenaufgabe, sammle ein Ergebnis und vergleiche es mit deinen Freunden.')}
     <p class="notice">${weekRange(monday())} · Trage eigene Ergebnisse ein und importiere Beiträge über geteilte Links. Alle Ergebnisse sind Selbstauskünfte.</p>
-    <p>${link('Alle Ranglisten ansehen','ranglisten','button primary')}</p>
+    <section class="surface utility"><p class="eyebrow">DIESE WOCHE EMPFOHLEN</p><h2>${highlight.icon} ${highlight.title}</h2><p>${highlight.result} · ${highlight.minutes} Min.</p>
+    <div class="actions">${link('Mitmachen','challenge/'+highlight.id,'button primary')}${btn('An Freunde schicken','copy-quest',highlight.id,'button secondary')}${link('Alle Ranglisten','ranglisten','text-button')}</div></section>
     <div class="hobby-grid catalog-grid">${challenges.map(quest=>`<a class="hobby-card surface" href="#challenge/${quest.id}"><div class="card-art ${quest.group}"><span>${quest.icon}</span></div><div class="card-content">
     <p class="eyebrow">${quest.max?'RANGLISTE':'GALERIE'}</p><h3>${quest.title}</h3><p>${quest.result}</p><div class="card-meta"><span>${quest.minutes} Min.</span><span>+${quest.xp} XP</span></div></div></a>`).join('')}</div>
     <section class="section"><h2>Gemeinsame Quests</h2>${invitesList()}</section>`;
@@ -344,7 +380,9 @@ function profilePage() {
     <aside class="surface utility"><h2>Deine Hobbys</h2>${state.active.length?`<ul class="levels">${state.active.map(id=>`<li><a href="#pfad/${id}">${byHobby[id].icon} ${byHobby[id].name}</a><strong>Level ${level(state,byHobby[id])}</strong></li>`).join('')}</ul>`:empty('Noch keine Hobbys gemerkt.')}
     <h2>Abzeichen</h2><ul class="badges">${badges(state).map(([icon,label,has])=>`<li class="${has?'earned':''}"><span>${icon}</span><span>${label}</span><small>${has?'Erhalten':'Offen'}</small></li>`).join('')}</ul>
     <h2>Bestleistungen</h2>${bests.size?`<ul class="levels">${[...bests.values()].map(entry=>`<li><span>${quests[entry.quest].title}<small>${entry.condition==='standard'?'Standardregeln':esc(entry.condition)}</small></span><strong>${entry.score}</strong></li>`).join('')}</ul>`:empty('Messbare Ergebnisse werden nach Bedingungen und Quest-Version verglichen.') }</aside></div>
-    <section class="surface utility section narrow"><h2>Profileinstellungen</h2><p>Dein Fortschritt bleibt in diesem Browser. Wenn du eine Erfolgskarte teilst, enthält sie deinen gewählten Anzeigenamen und das Ergebnis. Deine private Notiz bleibt hier.</p><form data-form="profile"><label>Anzeigename <input name="name" maxlength="28" value="${esc(state.name)}" placeholder="Optional"></label><button class="button secondary">Speichern</button></form></section>`;
+    <section class="surface utility section narrow"><h2>Profileinstellungen</h2><p>Dein Fortschritt bleibt in diesem Browser. Wenn du eine Erfolgskarte teilst, enthält sie deinen gewählten Anzeigenamen und das Ergebnis. Deine private Notiz bleibt hier.</p><form data-form="profile"><label>Anzeigename <input name="name" maxlength="28" value="${esc(state.name)}" placeholder="Optional"></label><button class="button secondary">Speichern</button></form>
+    <h2>Fortschritt sichern</h2><p>Mit einer Sicherungsdatei nimmst du deine eigenen Quests, Übungsdaten und Hobby-Einstellungen auf ein anderes Gerät mit. Die Datei enthält auch deine privaten Quest-Notizen.</p>
+    <div class="actions">${btn('Fortschritt herunterladen','backup','','button secondary')}${btn('Sicherung importieren','restore','','button secondary')}</div></section>`;
 }
 const sources=[
   ['University of Minnesota Extension','4-H-Projektübersicht für die Bandbreite des Katalogs','https://extension.umn.edu/4-h-and-youth/minnesota-4-h/4-h-member-resources/4-h-projects'],
@@ -395,6 +433,7 @@ function finishDialog(id) {
   const prior=state.entries.some(entry=>entry.quest===questId&&(quest.type!=='Challenge'||entry.week===monday()));
   openModal('Quest abschließen',modalForm('finish',id,
     `<p>${quest.title} · ${prior?'Wiederholung':'+'+quest.xp+' XP'}</p>${result}${condition}
+      ${quest.type==='Challenge'?'':`<label>Wie sicher fühlst du dich?<select name="confidence"><option value="">Noch offen</option><option value="retry">Ich möchte die Technik noch einmal üben</option><option value="ready">Ich bin bereit für den nächsten Schritt</option></select></label>`}
       <label>Private Notiz <textarea name="note" maxlength="420" placeholder="Was hat gut geklappt?"></textarea></label>
       ${invite?'<p class="notice">Der Abschluss zählt auch für eure gemeinsame Quest.</p>':''}`,'Ergebnis speichern'));
 }
@@ -402,12 +441,19 @@ function cardDialog(entry) {
   if(!entry) return;
   const quest=quests[entry.quest];
   const hobby=byHobby[quest.hobby];
-  const options=hobby.quests.filter(item=>item.requires.includes(quest.id)&&unlocks(state,item)&&!completed(state,item.id));
+  const advanced=hobby.quests.filter(item=>item.requires.includes(quest.id)&&unlocks(state,item)&&!completed(state,item.id));
+  const options=advanced.length?advanced:[nextQuest(state,hobby)].filter(Boolean);
+  const retry=entry.confidence==='retry';
   const wasBest=entry.score!==null&&(entry.best===null||entry.score>entry.best);
   openModal('Deine Erfolgskarte',`<div class="success-card ${hobby.group}"><div class="tile-icon">${hobby.icon}</div><p class="eyebrow">${esc(hobby.name)} · ${entry.xp?('+'+entry.xp+' XP'):'Wiederholung'}</p><h3>${quest.title}</h3><p>${entry.score===null?'':entry.score+' · '}${esc(entry.result||quest.result)}</p>
   ${entry.previous!==null?`<p>Letzter vergleichbarer Versuch: ${entry.previous}</p>`:''}${wasBest?'<p><strong>Persönliche Bestleistung</strong></p>':''}</div>
-  <p>Der geteilte Link enthält Anzeigename und Ergebnis. Deine private Notiz bleibt hier.</p>
-  <div class="actions">${btn('Erfolgskarten-Link kopieren','share',entry.id,'button primary')}${options.map(item=>link(item.title,'quest/'+item.id,'button secondary')).join('')}</div>`);
+  <p>${retry?'Wiederhole die Übung und achte auf eine einzige Änderung. In „Heute“ kann sie als Nächstes erscheinen.':resultFeedback(quest)}</p>
+  <div class="actions">${retry?link('Übung wiederholen','quest/'+quest.id,'button primary'):''}${options.map((item,index)=>link(item.title,'quest/'+item.id,'button '+(!retry&&index===0?'primary':'secondary'))).join('')}
+  <p>${btn(quest.type==='Challenge'?'Ergebnislink für Freunde kopieren':'Erfolgskarten-Link kopieren','share',entry.id,'button secondary')}</p>`);
+}
+function resultFeedback(quest) {
+  const guide=starterGuides[quest.id];
+  return guide?'Selbstcheck: '+esc(guide.success):'Vergleiche dein Ergebnis mit dem Ziel der Quest. Du kannst jederzeit den nächsten Schritt wählen.';
 }
 function urlFor(hash) { return new URL('#'+hash,location.href).href; }
 function resultLink(entry) {
@@ -437,6 +483,41 @@ document.addEventListener('click',event=>{
   const {action:kind,value}=action.dataset;
   switch(kind) {
     case 'close': modal.close(); break;
+    case 'language':
+      if(Object.hasOwn(languages,value)) {
+        language=value;
+        const region=main.querySelector('#phrase-cards');
+        region.innerHTML=phraseCards();
+        region.querySelector('[aria-pressed="true"]').focus();
+      }
+      break;
+    case 'speak': {
+      const [id,index]=value.split('~');
+      const item=languages[id];
+      const phrase=item?.pairs[Number(index)]?.[0];
+      if(!phrase||!window.speechSynthesis||!window.SpeechSynthesisUtterance) {alertUser('Dein Browser unterstützt hier keine Sprachausgabe.'); break;}
+      const voice=speechSynthesis.getVoices().find(candidate=>candidate.localService&&candidate.lang.toLowerCase().startsWith(id));
+      const utterance=new SpeechSynthesisUtterance(phrase);
+      utterance.lang=item.locale;
+      if(voice) utterance.voice=voice;
+      utterance.rate=.85;
+      utterance.onerror=()=>alertUser('Für diese Sprache war keine Sprachausgabe verfügbar.');
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+      break;
+    }
+    case 'backup': {
+      const url=URL.createObjectURL(new Blob([profileBackup(state)],{type:'application/json'}));
+      const file=document.createElement('a');
+      file.href=url;
+      file.download='hobbymaxing-fortschritt-'+localDate()+'.json';
+      file.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      break;
+    }
+    case 'restore':
+      openModal('Fortschritt übernehmen',modalForm('restore','',`<p>Vorhandener Fortschritt bleibt erhalten. Wähle eine von Hobbymaxing exportierte Sicherungsdatei.</p><label>Sicherungsdatei<input name="backup" type="file" accept=".json,application/json" required></label>`,'Sicherung übernehmen'));
+      break;
     case 'coach-prompt': {
       const form=action.closest('form');
       form.elements.question.value=value;
@@ -471,9 +552,7 @@ document.addEventListener('click',event=>{
       } else {
         const reply=checkStudio(id,draft);
         studioReplies[id]=reply;
-        if(reply.pass&&!Object.hasOwn(state.practice,'studio-'+id)) {
-          if(save(latest=>earnPractice(latest,'studio-'+id,25),{refresh:false})) alertUser('+25 XP · Studioaufgabe bestanden');
-        }
+        if(reply.pass) awardPractice('studio-'+id,25);
       }
       render();
       if(kind==='studio-check') main.querySelector('#studio-feedback')?.focus();
@@ -494,9 +573,7 @@ document.addEventListener('click',event=>{
       if(kind==='lab-run') {
         const run=runBlocks(draft,exercise);
         labRuns[id]=run;
-        if(run?.pass&&!Object.hasOwn(state.practice,'lab-'+id)) {
-          if(save(latest=>earnPractice(latest,'lab-'+id,25),{refresh:false})) alertUser('+25 XP · Laboraufgabe bestanden');
-        }
+        if(run?.pass) awardPractice('lab-'+id,25);
       } else delete labRuns[id];
       render();
       if(kind==='lab-run') main.querySelector('#lab-feedback')?.focus();
@@ -574,7 +651,7 @@ document.addEventListener('click',event=>{
     }
   }
 });
-document.addEventListener('submit',event=>{
+document.addEventListener('submit',async event=>{
   const form=event.target;
   event.preventDefault();
   const values=new FormData(form);
@@ -584,8 +661,13 @@ document.addEventListener('submit',event=>{
       const selected=values.get('hobby');
       const question=values.get('question').trim().slice(0,300);
       if(!question) return;
-      coachHistory=[...coachHistory,{question,name:byHobby[selected]?.name,...coachReply(state,selected,question)}].slice(-12);
-      const path='hilfe'+(byHobby[selected]?'/'+selected:'');
+      const focusQuest=quests[form.dataset.quest]?.hobby===selected?quests[form.dataset.quest]:null;
+      const match=question.match(/schritt\s*(\d+)|(\d+)\.?\s*(?:ter\s*)?schritt/i);
+      const index=match?Number(match[1]||match[2])-1:-1;
+      const step=focusQuest&&Number.isInteger(index)?focusQuest.steps[index]:null;
+      const reply=step?{text:starterGuides[focusQuest.id]?.tips[index]||step+' '+focusQuest.adapt,route:'quest/'+focusQuest.id}:coachReply(state,selected,question);
+      coachHistory=[...coachHistory,{question,name:byHobby[selected]?.name,...reply}].slice(-12);
+      const path='hilfe'+(byHobby[selected]?'/'+selected:'')+(focusQuest?'/'+focusQuest.id:'');
       if(location.hash==='#'+path) {
         render();
         main.querySelector('textarea[name="question"]')?.focus();
@@ -598,9 +680,7 @@ document.addEventListener('submit',event=>{
       if(!lesson||!Number.isInteger(index)||index<0||index>2) return;
       const correct=questionOptions(id)[index]===lesson.correct;
       quizReplies[id]={index,correct};
-      if(correct&&!Object.hasOwn(state.practice,'quiz-'+id)) {
-        if(save(latest=>earnPractice(latest,'quiz-'+id,20),{refresh:false})) alertUser('+20 XP · Wissenscheck bestanden');
-      }
+      if(correct) awardPractice('quiz-'+id,20);
       render();
       main.querySelector('#quiz-feedback')?.focus();
       break;
@@ -613,7 +693,7 @@ document.addEventListener('submit',event=>{
       const quest=quests[questId];
       let saved;
       const ok=save(latest=>{
-        saved=record(latest,quest,{score:Number(values.get('score')),condition:values.get('condition'),note:values.get('note'),result:values.get('result'),invite});
+        saved=record(latest,quest,{score:Number(values.get('score')),condition:values.get('condition'),note:values.get('note'),result:values.get('result'),confidence:values.get('confidence'),invite});
         if(!saved) return false;
         const plan=latest.plans.find(item=>item.quest===questId&&!item.done&&item.day<=saved.day);
         if(plan) plan.done=true;
@@ -625,6 +705,22 @@ document.addEventListener('submit',event=>{
     case 'profile':
       if(save(latest=>{latest.name=values.get('name').trim().slice(0,28);})) alertUser('Profil gespeichert.');
       break;
+    case 'preferences':
+      if(!byHobby[id]) break;
+      if(save(latest=>{
+        latest.preferences[id]=Object.fromEntries(Object.entries(preferences).map(([field,choices])=>[field,choices.some(([value])=>value===values.get(field))?values.get(field):choices[0][0]]));
+        if(!latest.active.includes(id)) latest.active.push(id);
+      })) alertUser('Empfehlungen gespeichert.');
+      break;
+    case 'restore': {
+      const file=values.get('backup');
+      if(!file||file.size>1000000) {alertUser('Die Sicherungsdatei ist ungültig oder zu groß.'); break;}
+      let profile;
+      try { profile=parseBackup(await file.text()); } catch { /* Invalid file. */ }
+      if(!profile) {alertUser('Diese Datei ist keine gültige Hobbymaxing-Sicherung.'); break;}
+      if(save(latest=>{mergeBackup(latest,profile);})) {modal.close(); alertUser('Fortschritt zusammengeführt.');}
+      break;
+    }
     case 'goal':
       if(save(latest=>{latest.goals[shift(monday(),7)]=Number(values.get('goal'));})) alertUser('Ziel für nächste Woche gespeichert.');
       break;

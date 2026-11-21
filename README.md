@@ -14,6 +14,8 @@ Hobbymaxing ist eine deutschsprachige Web-Beta für Hobbys, die du im echten Leb
 - Profil mit Tagesstreak, Wochenserie, XP, Hobby-Leveln, Abzeichen, Projektbuch und Bestleistungen. Neue App-Übungen zählen für die Tagesstreak und bringen einmalig XP. Reale Quests zählen für beide Serien.
 - Sechs Wochen-Challenges mit vier Disziplin-Ranglisten und zwei Galerien. Die Ranglisten zeigen Wochenwerte und Gesamtrekorde aus eigenen und importierten Ergebnissen.
 - Regelbasierter Lerncoach, Hilfe und ein direkter Link für Fragen oder Fehlerberichte auf GitHub.
+- Direkt spielbare Quest-Filter, persönliche Hobby-Einstellungen, wiederholbare Streak-Übungen und eine wechselnde Wochenempfehlung.
+- Satzkarten in drei Sprachen mit browserabhängiger Sprachausgabe, konkretes Einstiegsrezept, Schritt-Tipps und eine Sicherungsdatei für den eigenen Fortschritt.
 
 Fortschritt bleibt in der lokalen Speicherung des Browsers. Einladungs- und Ergebnislinks übertragen bewusst freigegebene Daten. Sie enthalten keinen Zugriff auf das private Projektbuch. Ranglisten beruhen auf Selbstauskunft und auf manuell importierten Links. Die App hat keine Konten, serverseitigen Freundeslisten, öffentliche Feeds, Medienuploads oder Zahlungen.
 

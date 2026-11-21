@@ -6,6 +6,7 @@ import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
 import {questionOptions,coachReply,experiments,runBlocks} from './learning.mjs';
 import {studios,studioCell,checkStudio} from './studios.mjs';
+import {questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,languages} from './play.mjs';
 
 const day = iso => new Date(iso+'T12:00:00');
 const score = (value,condition='3 m') => ({score:value,condition});
@@ -117,4 +118,31 @@ test('the coach gives hobby-aware advice and studios validate selected cells',()
   assert.deepEqual(checkStudio('beats',[0,4,10]),{missing:1,extra:0,pass:false});
   assert.equal(checkStudio('beats',[0,4,10,14]).pass,true);
   assert.equal(checkStudio('pixelart',studios.pixelart.solution).pass,true);
+});
+
+test('quest filters exclude locked stages while recommendations prioritize active hobbies',()=>{
+  const state=initial(), garden=byHobby.garten, first=garden.quests[0], second=garden.quests[1];
+  assert.equal(questMatches(garden,first,{time:'10'},state),false);
+  assert.equal(questMatches(garden,second,{time:'10'},state),false);
+  record(state,first,{result:'Basilikum'},day('2026-11-16'));
+  assert.equal(questMatches(garden,second,{time:'10'},state),true);
+  assert.equal(recommend(state,{time:'10'}).quest.id,second.id);
+  assert.notEqual(featuredChallenge('2026-11-16').id,featuredChallenge('2026-11-23').id);
+  assert.equal(Object.values(languages).every(item=>item.pairs.length===5),true);
+});
+
+test('repeated practice keeps the streak and backups merge without duplicate rewards',()=>{
+  const state=initial(), fresh=initial();
+  earnPractice(state,'quiz-scratch',20,'2026-11-16');
+  assert.equal(earnPractice(state,'quiz-scratch',20,'2026-11-17'),false);
+  assert.equal(dailyStreak(state,'2026-11-17').running,2);
+  record(state,quests['scratch-1'],{result:'Figur bewegt sich',confidence:'retry'},day('2026-11-17'));
+  const backup=parseBackup(profileBackup(state));
+  assert.ok(backup);
+  mergeBackup(fresh,backup);
+  mergeBackup(fresh,backup);
+  assert.equal(totalXp(fresh),50);
+  assert.equal(fresh.entries[0].confidence,'retry');
+  assert.equal(fresh.entries.length,1);
+  assert.equal(parseBackup('{"version":1}'),null);
 });

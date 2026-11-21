@@ -109,6 +109,15 @@ for (const [index,steps] of scratchLessons.entries()) {
   quest.version=2;
 }
 
+const firstLanguage=hobbies.find(hobby=>hobby.id==='sprachen').quests[0];
+firstLanguage.materials='Die Satzkarten in dieser Quest und optional Kopfhörer';
+firstLanguage.steps=['Wähle Spanisch, Französisch oder Englisch. Lies die erste Satzkarte mit ihrer Übersetzung.','Höre und sprich die fünf Sätze nach. Ersetze „Ana“ beim Vorstellen durch deinen Namen.','Klappe die Satzkarten zu. Sag die Sätze ohne Vorlage und öffne die Karten danach zum Vergleichen.'];
+firstLanguage.version=2;
+const firstCooking=hobbies.find(hobby=>hobby.id==='kochen').quests[0];
+firstCooking.materials='100 g Nudeln, 150 g passierte Tomaten, 1 Liter Wasser, Salz, Topf, kleine Pfanne oder zweiter Topf und ein Sieb';
+firstCooking.steps=['Bring das Wasser zum Kochen, salze es und gib die Nudeln hinein. Stell einen Timer nach der Packungsangabe.','Erwärme die passierten Tomaten parallel etwa fünf Minuten bei kleiner Hitze und rühre gelegentlich. Würze am Ende mit etwas Salz.','Koste eine Nudel kurz vor Ablauf der Zeit. Ist sie angenehm bissfest, gieße sie ab und mische sie mit der heißen Sauce.'];
+firstCooking.version=2;
+
 for (const hobby of hobbies) {
   const last=hobby.quests.at(-1);
   hobby.quests.push({
