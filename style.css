@@ -225,6 +225,7 @@ dialog::backdrop { background: #1c261ab0; }
 .academy-sidebar { display:grid; gap:14px; }
 .hobby-intro p { max-width:70ch; }
 .hobby-intro .tags { margin-top:15px; }
+.intro-mobile-practice { display:none; }
 .academy-path { list-style:none; margin:0; padding:0; }
 .academy-stop { position:relative; display:grid; grid-template-columns:55px minmax(0,1fr); gap:13px; padding-bottom:24px; isolation:isolate; }
 .academy-stop:not(:last-child)::before { content:''; position:absolute; z-index:-1; inset:20px auto -18px 25px; width:4px; border-radius:99px; background:#dce4d2; }
@@ -298,6 +299,7 @@ button.block:hover { filter:brightness(.96); }
 }
 @media(max-width:700px) {
   .academy-layout { grid-template-columns:1fr; }
+  .intro-mobile-practice { display:flex; margin-top:12px; }
   .academy-sidebar { grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr)); }
   .stat-grid { grid-template-columns:repeat(2,1fr); }
 }

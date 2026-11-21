@@ -39,6 +39,7 @@ const btn=(label,action,value='',kind='button')=>`<button type="button" class="$
 const chip=text=>`<span class="chip">${text}</span>`;
 const dateLabel=(day,options={weekday:'short',day:'numeric',month:'short'})=>new Intl.DateTimeFormat('de-DE',options).format(new Date(day+'T12:00:00'));
 const named=()=>state.name.trim()||'Du';
+const pointLabel=points=>points+' '+(points===1?'Punkt':'Punkte');
 const weekRange=week=>`${dateLabel(week,{day:'numeric',month:'short'})} – ${dateLabel(shift(week,6),{day:'numeric',month:'short'})}`;
 const dateInput=(value=localDate())=>`<label>Datum <input type="date" name="day" min="${localDate()}" required value="${value}"></label>`;
 const titleBlock=(label,title,sub)=>`<div class="page-heading"><p class="eyebrow"><span>✳</span> ${label}</p><h1>${title}</h1><p>${sub}</p></div>`;
@@ -128,7 +129,8 @@ function pathPage(id) {
   return `<p>${link('Hobby-Katalog','entdecken','text-button')}</p><div class="path-banner surface ${hobby.group}"><span class="path-emoji">${hobby.icon}</span><div><p class="eyebrow">${groupNames[hobby.group]}</p><h1>${hobby.name}</h1><p>${hobby.skill} · Level ${level(state,hobby)}</p></div>${btn(active?'Aus meinen Hobbys entfernen':'Hobby merken','active',id,'button secondary')}</div>
   <div class="academy-layout section">
     <div>
-      <section class="surface mission hobby-intro"><h2>Worum geht’s bei diesem Hobby?</h2><p>${lesson.intro}</p><h3>So gelingt der Einstieg</h3><p>${lesson.technique}</p><div class="tags">${chip(hobby.place)}${chip(esc(hobby.gear))}${chip('Erste Quest: '+hobby.quests[0].minutes+' Min.')}</div></section>
+      <section class="surface mission hobby-intro"><h2>Worum geht’s bei diesem Hobby?</h2><p>${lesson.intro}</p><h3>So gelingt der Einstieg</h3><p>${lesson.technique}</p><div class="tags">${chip(hobby.place)}${chip(esc(hobby.gear))}${chip('Erste Quest: '+hobby.quests[0].minutes+' Min.')}</div>
+      <div class="actions intro-mobile-practice">${link('Wissenscheck','wissen/'+id,'button secondary')}${id==='scratch'?link('Blocklabor','labor','button secondary'):Object.hasOwn(studios,id)?link('Übungsstudio','studio/'+id,'button secondary'):''}</div></section>
       <section class="section" aria-label="Lernpfad"><div class="section-title"><div><h2>Dein Lernpfad</h2><p>${hits} von ${hobby.quests.length} Quests erledigt</p></div></div>
       <ol class="academy-path">${stages.map((label,index)=>{
         const station=hobby.quests.filter(quest=>quest.stage===index+1);
@@ -210,7 +212,7 @@ function quizPage(id) {
   </section>`;
 }
 function board(frame) {
-  return `<div class="lab-board" role="img" aria-label="Figur auf Feld ${frame.pos+1} von 5. ${frame.points} Punkte.">
+  return `<div class="lab-board" role="img" aria-label="Figur auf Feld ${frame.pos+1} von 5. ${pointLabel(frame.points)}.">
     ${Array.from({length:5},(_,i)=>`<div class="lab-cell ${i===frame.pos?'player-cell':''}"><span aria-hidden="true">${i===frame.pos?'●':i===3&&frame.star?'✦':''}</span></div>`).join('')}
   </div>`;
 }
@@ -233,9 +235,9 @@ function labPage(id) {
     <h3>Dein Programm</h3>${draft.length?`<ol class="program">${draft.map(key=>`<li><span class="block ${blocks[key].kind}">${blocks[key].label}</span></li>`).join('')}</ol>`:empty('Wähle einen Ereignisblock, um dein Programm zu beginnen.')}
     <div class="actions">${btn('Programm testen','lab-run',exercise.id,'button primary')}${draft.length?btn('Letzten Block entfernen','lab-undo',exercise.id,'button secondary'):''}</div>
     <details><summary>Tipp anzeigen</summary><p>${exercise.hint}</p></details></section>
-    <aside class="surface utility stage"><div class="section-title"><h2>Bühne</h2>${chip(frame.points+' Punkte')}</div>${board(frame)}
+    <aside class="surface utility stage"><div class="section-title"><h2>Bühne</h2>${chip(pointLabel(frame.points))}</div>${board(frame)}
     ${run?`<div id="lab-feedback" class="feedback ${run.pass?'positive':'try-again'}" tabindex="-1"><strong>${run.message}</strong>
-    ${run.frames.length?`<ul>${run.frames.map(item=>`<li>${eventNames[item.event]} · Feld ${item.pos+1} · ${item.points} Punkte</li>`).join('')}</ul>`:''}
+    ${run.frames.length?`<ul>${run.frames.map(item=>`<li>${eventNames[item.event]} · Feld ${item.pos+1} · ${pointLabel(item.points)}</li>`).join('')}</ul>`:''}
     ${run.pass?link(index===experiments.length-1?'Zum Scratch-Lernpfad':'Nächste Laboraufgabe',index===experiments.length-1?'pfad/scratch':'labor/'+experiments[index+1].id,'button secondary'):''}</div>`:
     '<p class="stage-note">Beim Test lösen wir die Ereignisse für dich aus und zeigen jede Station.</p>'}</aside></div>`}`;
 }
@@ -336,7 +338,7 @@ function profilePage() {
     if(!bests.has(id)||bests.get(id).score<entry.score) bests.set(id,entry);
   }
   return `${titleBlock('DEIN PROFIL',state.name?'Hi, '+esc(state.name)+'.':'Dein Projektbuch.','Hier findest du die Quests, Projekte und persönlichen Bestleistungen, die du gesammelt hast.')}
-    <div class="stat-grid"><div class="surface stat"><span>${svg('bolt')} Erfahrung</span><strong>${totalXp(state)} XP</strong></div><div class="surface stat"><span>${svg('flame')} Tagesstreak</span><strong>${daily.running} T.</strong><small>Bestwert: ${daily.best} Tage</small></div><div class="surface stat"><span>✦ Aktuelle Wochenserie</span><strong>${running} Wo.</strong></div><div class="surface stat"><span>${svg('trophy')} Beste Wochenserie</span><strong>${best} Wo.</strong></div></div>
+    <div class="stat-grid"><div class="surface stat"><span>${svg('bolt')} Erfahrung</span><strong>${totalXp(state)} XP</strong></div><div class="surface stat"><span>${svg('flame')} Tagesstreak</span><strong>${daily.running} T.</strong><small>Bestwert: ${daily.best} ${daily.best===1?'Tag':'Tage'}</small></div><div class="surface stat"><span>✦ Aktuelle Wochenserie</span><strong>${running} Wo.</strong></div><div class="surface stat"><span>${svg('trophy')} Beste Wochenserie</span><strong>${best} Wo.</strong></div></div>
     <div class="detail-grid section"><section class="surface mission"><h2>Projektbuch</h2>${state.entries.length?`<ul class="plain-list timeline">${state.entries.map(entry=>`<li><div><small>${dateLabel(entry.day)} · ${quests[entry.quest].type}</small><h3><a href="#quest/${entry.quest}">${quests[entry.quest].title}</a></h3><p>${entry.score==null?'':entry.score+' · '}${esc(entry.result)}</p>${entry.note?`<p>${esc(entry.note)}</p>`:''}</div>${btn('Erfolgskarte','card',entry.id,'text-button')}</li>`).join('')}</ul>`:empty('Schließe deine erste Quest ab. Dann taucht sie hier auf.') }
     <h2>Abgeschlossene Wochenvorhaben</h2>${state.journeys.map(id=>journeys.find(journey=>journey.id===id)).filter(journey=>journey.quests.every(id=>completed(state,id))).map(journey=>`<p>${journey.icon} ${journey.title}</p>`).join('')||empty('Deine fertigen Wochenvorhaben erscheinen hier.')}</section>
     <aside class="surface utility"><h2>Deine Hobbys</h2>${state.active.length?`<ul class="levels">${state.active.map(id=>`<li><a href="#pfad/${id}">${byHobby[id].icon} ${byHobby[id].name}</a><strong>Level ${level(state,byHobby[id])}</strong></li>`).join('')}</ul>`:empty('Noch keine Hobbys gemerkt.')}
