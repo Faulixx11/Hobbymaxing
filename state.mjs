@@ -1,6 +1,6 @@
 import { byHobby, quests } from './catalog.mjs';
 
-export const initial = () => ({name:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[]});
+export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[]});
 export const key = 'hobbymaxing-v1';
 export function load(storage) {
   try { return {...initial(), ...JSON.parse(storage.getItem(key) || '{}')}; } catch { return initial(); }
@@ -73,6 +73,7 @@ export function record(state, quest, values, now=new Date()) {
     note:String(values.note||'').trim().slice(0,420), invite:values.invite||'', xp:hasReward?0:quest.xp,
     previous:comparable[0]?.score??null, best:comparable.length?Math.max(...comparable.map(item=>item.score)):null
   };
+  state.playerId ||= crypto.randomUUID();
   state.entries.unshift(entry);
   if (!state.active.includes(quest.hobby)) state.active.push(quest.hobby);
   if (values.invite) {
@@ -114,12 +115,13 @@ export function validShare(data) {
   const quest=quests[data.quest];
   if (data.mode==='invite') return typeof data.code==='string'&&/^[a-z0-9-]{8,42}$/i.test(data.code)&&validDay(data.day)&&typeof data.done==='boolean';
   if (data.mode!=='result'||data.version!==quest.version||!validDay(data.week)||monday(data.week)!==data.week||typeof data.result!=='string'||data.result.length>160) return false;
+  if (data.player!==undefined&&(typeof data.player!=='string'||!/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(data.player))) return false;
   return quest.max?Number.isInteger(data.score)&&data.score>=0&&data.score<=quest.max:data.score===null;
 }
 function validDay(day) {
   return typeof day==='string' && /^\d{4}-\d{2}-\d{2}$/.test(day) && localDate(new Date(day+'T12:00:00'))===day;
 }
 export function rankId(data) {
-  return [data.quest,data.version,data.week,data.name.trim().toLowerCase()].join('|');
+  return [data.quest,data.version,data.week,data.player||data.name.trim().toLowerCase()].join('|');
 }
 export function canPlan(questId) { return Object.hasOwn(quests,questId) && Object.hasOwn(byHobby,quests[questId].hobby); }

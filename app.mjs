@@ -261,7 +261,8 @@ function cardDialog(entry) {
 }
 function urlFor(hash) { return new URL('#'+hash,location.href).href; }
 function resultLink(entry) {
-  return urlFor('teilen/'+encode({mode:'result',quest:entry.quest,version:entry.version,week:entry.week,name:state.name||'Mitspieler',score:entry.score,result:entry.result||quests[entry.quest].result}));
+  if(!state.playerId&&!save(latest=>{latest.playerId ||= crypto.randomUUID();})) return '';
+  return urlFor('teilen/'+encode({mode:'result',quest:entry.quest,version:entry.version,week:entry.week,name:state.name||'Mitspieler',player:state.playerId,score:entry.score,result:entry.result||quests[entry.quest].result}));
 }
 function inviteLink(invite) {
   return urlFor('teilen/'+encode({mode:'invite',quest:invite.quest,code:invite.code,day:invite.day,name:state.name||'Mitspieler',done:invite.done}));
@@ -273,6 +274,7 @@ async function copy(value,message='Link kopiert.') {
 function acceptResult(data) {
   if(!validShare(data)||data.mode!=='result'||quests[data.quest].type!=='Challenge') return false;
   return save(latest=>{
+    if(data.player&&data.player===latest.playerId) return false;
     const old=latest.scores.find(row=>rankId(row)===rankId(data));
     if(old&&old.score!==null&&old.score>data.score) return false;
     latest.scores=latest.scores.filter(row=>rankId(row)!==rankId(data));
@@ -318,7 +320,10 @@ document.addEventListener('click',event=>{
     case 'copy-quest': copy(urlFor('quest/'+value)); break;
     case 'share': {
       const entry=state.entries.find(item=>item.id===value);
-      if(entry) copy(resultLink(entry));
+      if(entry) {
+        const url=resultLink(entry);
+        if(url) copy(url);
+      }
       break;
     }
     case 'share-invite': {

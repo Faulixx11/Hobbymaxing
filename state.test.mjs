@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hobbies,quests,byHobby,challenges} from './catalog.mjs';
-import {initial,record,totalXp,unlocks,level,streaks,weekGoal,validShare,encode,decode,leaderboard} from './state.mjs';
+import {initial,record,totalXp,unlocks,level,streaks,weekGoal,validShare,encode,decode,leaderboard,rankId} from './state.mjs';
 
 const day = iso => new Date(iso+'T12:00:00');
 const score = (value,condition='3 m') => ({score:value,condition});
@@ -58,6 +58,9 @@ test('share links support Unicode and the leaderboard keeps each weekly best',()
   assert.equal(validShare({...shared,week:'2026-11-31'}),false);
   assert.equal(validShare({...shared,week:'2026-11-17'}),false);
   assert.equal(validShare({...shared,quest:'constructor'}),false);
+  assert.equal(validShare({...shared,player:'invalid'}),false);
+  const named={...shared,player:crypto.randomUUID()};
+  assert.equal(rankId(named),rankId({...named,name:'Neuer Name'}));
   state.scores.push(shared);
   assert.deepEqual(leaderboard(state,quest,'2026-11-16').map(row=>row.score),[9,6]);
   assert.equal(leaderboard(state,quest,'2026-11-23').length,0);
