@@ -1,5 +1,9 @@
-import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs';
-import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan} from './state.mjs';
+import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=03';
+import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak} from './state.mjs?v=03';
+import {lessons} from './lessons.mjs';
+import {resources} from './resources.mjs';
+import {stages,questionOptions,helpTopics,coachReply,blocks,experiments,runBlocks} from './learning.mjs';
+import {studios,studioCell,checkStudio,playBeat} from './studios.mjs';
 
 const main=document.querySelector('#main');
 const nav=document.querySelector('#nav');
@@ -8,17 +12,25 @@ const modal=document.querySelector('#modal');
 let state=load(localStorage);
 let filter={group:'all',query:'',place:'',gear:'',time:'',stage:''};
 let toastTimer;
+let coachHistory=[];
+const labDrafts={};
+const labRuns={};
+const quizReplies={};
+const studioDrafts={};
+const studioReplies={};
 const featured=['fussball','fotografie','kochen','zeichnen','wandern','tennis'];
 const groupNames=Object.fromEntries(groups.map(([id,name])=>[id,name]));
 const art={wandern:'mountain',fussball:'football',fotografie:'photo',kochen:'cooking'};
-const navigation=[['heute','Heute','home'],['entdecken','Entdecken','compass'],['challenges','Challenges','trophy'],['profil','Profil','user']];
+const navigation=[['heute','Heute','home'],['entdecken','Entdecken','compass'],['challenges','Challenges','trophy'],['profil','Profil','user'],['hilfe','Hilfe','help']];
 const vectors={
   home:'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z',compass:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM16 8l-2 6-6 2 2-6z',
   trophy:'M7 4h10v6a5 5 0 0 1-10 0zM7 6H3v2a4 4 0 0 0 4 4m10-6h4v2a4 4 0 0 1-4 4m-5 3v5m-5 0h10',
   user:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2',
   time:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM12 6v6l4 2',
   bolt:'m13 2-9 12h7l-1 8 10-12h-7z', calendar:'M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm-2 5h18M8 3v4m8-4v4',
-  search:'M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-2 6 5 5', lock:'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z',check:'m4 12 5 5L20 6'
+  search:'M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-2 6 5 5', lock:'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z',check:'m4 12 5 5L20 6',
+  help:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM9 9a3 3 0 0 1 6 1c0 2-3 2-3 4m0 3v.1',
+  flame:'M13 2c1 4 7 7 7 12a8 8 0 1 1-16 0c0-3 2-5 4-7 0 3 2 4 3 4 2-3 2-5 2-9Z'
 };
 const svg=id=>`<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="${vectors[id]}"/></svg>`;
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -38,14 +50,14 @@ function alertUser(message) {
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>toast.classList.remove('visible'),3800);
 }
-function save(change) {
+function save(change,{refresh=true}={}) {
   const latest=load(localStorage);
   const updated=change(latest);
   if (updated===false) return false;
   try { localStorage.setItem(key,JSON.stringify(latest)); }
   catch { alertUser('Der Browser konnte die Änderung nicht speichern.'); return false; }
   state=latest;
-  render();
+  if(refresh) render();
   return true;
 }
 function pathCard(hobby,{image=false}={}) {
@@ -68,6 +80,10 @@ function weekCard() {
     ${plans.length?`<div class="mini-plans">${plans.map(plan=>`<div><a href="#quest/${plan.quest}">${dateLabel(plan.day)} · ${quests[plan.quest].title}</a>${btn('Verschieben','reschedule',plan.id,'text-button')}</div>`).join('')}</div>`:''}
     ${link('Woche planen','woche','button secondary full')}</section>`;
 }
+function streakCard() {
+  const streak=dailyStreak(state);
+  return `<section class="surface streak-card"><div class="tile-icon ember">${svg('flame')}</div><div><h2>${streak.running} ${streak.running===1?'Tag':'Tage'} in Folge</h2><p>${streak.doneToday?'Heute geschafft.':streak.running?'Eine Quest oder App-Übung hält deine Serie.':'Schließe eine Quest oder App-Übung ab.'}</p></div></section>`;
+}
 function todayPage() {
   const active=state.active.map(id=>byHobby[id]).filter(Boolean);
   const recommended=active.map(hobby=>nextQuest(state,hobby)).find(Boolean);
@@ -80,7 +96,8 @@ function todayPage() {
     <section class="bubble-row" aria-label="Schnellauswahl">${btn(svg('time')+' 10 Minuten','quick','time','pill')}${btn('⌂ &nbsp; Zu Hause','quick','home','pill')}${btn('✦ &nbsp; Etwas Neues','quick','new','pill')}</section>
     <section class="section"><div class="section-title"><div><p class="eyebrow"><span>✦</span> HOBBY-KATALOG</p><h2>${active.length?'Deine Hobbys':'Was willst du heute machen?'}</h2></div>${link('Alle '+hobbies.length+' Hobbys','entdecken','text-button')}</div>
     <div class="hobby-grid">${(active.length?active.slice(0,3):featured.slice(0,3).map(id=>byHobby[id])).map(hobby=>pathCard(hobby,{image:true})).join('')}</div></section>
-    </div><aside class="dashboard-aside" aria-label="Woche und Challenge">${weekCard()}
+    <section class="section surface practice-promo"><div class="tile-icon lilac">⌘</div><div><h2>Teste dein Können direkt hier</h2><p>Programmiere deine erste Figur im Scratch-Blocklabor oder mache einen Wissenscheck in deinem Lernpfad.</p></div>${link('Blocklabor öffnen','labor','button secondary')}</section>
+    </div><aside class="dashboard-aside" aria-label="Woche und Challenge">${streakCard()}${weekCard()}
     <section class="challenge-teaser surface"><p class="eyebrow"><span>✦</span> WOCHEN-CHALLENGE</p><div class="challenge-ball" aria-hidden="true">⚽</div><h2>Die Pass-Challenge</h2><p>Zehn Versuche. Wie oft triffst du das Ziel?</p>${link('Challenge ansehen','challenge/challenge-pass','button dark full')}</section></aside></div>`;
 }
 function filterSelect(name,label,options) {
@@ -104,17 +121,43 @@ function discoverPage() {
 function pathPage(id) {
   const hobby=byHobby[id];
   if(!hobby) return missing();
-  const first=hobby.quests[0], next=nextQuest(state,hobby);
+  const lesson=lessons[id], next=nextQuest(state,hobby);
   const active=state.active.includes(id);
+  const hits=hobby.quests.filter(quest=>completed(state,quest.id)).length;
+  const mastered=Object.hasOwn(state.practice,'quiz-'+id);
   return `<p>${link('Hobby-Katalog','entdecken','text-button')}</p><div class="path-banner surface ${hobby.group}"><span class="path-emoji">${hobby.icon}</span><div><p class="eyebrow">${groupNames[hobby.group]}</p><h1>${hobby.name}</h1><p>${hobby.skill} · Level ${level(state,hobby)}</p></div>${btn(active?'Aus meinen Hobbys entfernen':'Hobby merken','active',id,'button secondary')}</div>
-    <section class="section narrow"><div class="section-title"><div><h2>Dein Lernpfad</h2><p>${hobby.quests.length} Quests · ${esc(hobby.materials)}</p></div></div>
-    <ol class="path-list">${hobby.quests.map((quest,index)=>{
-      const done=completed(state,quest.id), open=unlocks(state,quest), fork=index>1 && hobby.quests.length===4 && index<3;
-      return `<li class="path-step ${open?'':'locked'} ${fork?'fork':''}">
-        <div class="path-node ${done?'done':''} ${next?.id===quest.id?'next':''}">${done?svg('check'):open?'✦':svg('lock')}</div>
-        <div class="surface path-body"><p class="eyebrow">${fork?'ALTERNATIVES TRAINING':quest.type} · ${quest.minutes} Min.</p><h3>${quest.title}</h3><p>${open?esc(quest.result):'Schließe '+(quest.any?'eines der Trainings davor':'die vorherige Quest')+' ab.'}</p>
-        ${open?link(done?'Erneut üben':quest===first?'Erste Quest ansehen':'Quest ansehen','quest/'+quest.id,'button '+(quest===next?'primary':'secondary')):''}</div></li>`;
-    }).join('')}</ol></section>`;
+  <div class="academy-layout section">
+    <div>
+      <section class="surface mission hobby-intro"><h2>Worum geht’s bei diesem Hobby?</h2><p>${lesson.intro}</p><h3>So gelingt der Einstieg</h3><p>${lesson.technique}</p><div class="tags">${chip(hobby.place)}${chip(esc(hobby.gear))}${chip('Erste Quest: '+hobby.quests[0].minutes+' Min.')}</div></section>
+      <section class="section" aria-label="Lernpfad"><div class="section-title"><div><h2>Dein Lernpfad</h2><p>${hits} von ${hobby.quests.length} Quests erledigt</p></div></div>
+      <ol class="academy-path">${stages.map((label,index)=>{
+        const station=hobby.quests.filter(quest=>quest.stage===index+1);
+        const cleared=station.some(quest=>completed(state,quest.id));
+        const unlocked=station.some(quest=>unlocks(state,quest));
+        const isNext=station.includes(next);
+        return `<li class="academy-stop ${cleared?'cleared':unlocked?'unlocked':'locked'}">
+          <span class="academy-node ${isNext?'next':''}" aria-hidden="true">${cleared?svg('check'):unlocked?index+1:svg('lock')}</span>
+          <div class="academy-body"><div class="stage-heading"><h3>${label}</h3><span>${cleared?'Erreicht':unlocked?(isNext?'Als Nächstes':'Freigeschaltet'):'Gesperrt'}</span></div>
+          <div class="station-options">${station.map(quest=>{
+            const done=completed(state,quest.id), open=unlocks(state,quest);
+            return `<article class="surface path-body"><p class="eyebrow">${quest.minutes} Min. · +${quest.xp} XP</p><h4>${quest.title}</h4><p>${quest.result}</p>
+            ${open?link(done?'Erneut üben':quest.stage===1?'Erste Quest starten':'Quest starten','quest/'+quest.id,'button '+(quest===next?'primary':'secondary')):`<small>${quest.any?'Schließe eine der Trainingsquests ab.':'Schließe die vorherige Etappe ab.'}</small>`}</article>`;
+          }).join('')}</div></div></li>`;
+      }).join('')}</ol></section>
+    </div>
+    <aside class="academy-sidebar">
+      <section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Direkt in der App üben</h2><p>Teste eine Grundregel dieses Hobbys. Beim ersten Bestehen bekommst du 20 XP.</p>${link(mastered?'Wissenscheck wiederholen':'Wissenscheck starten','wissen/'+id,'button primary')}
+        ${id==='scratch'?`<h3>Scratch-Blocklabor</h3><p>Drei interaktive Aufgaben zu Ereignissen, Bewegung und Punkten.</p>${link('Blocklabor öffnen','labor','button secondary')}`:''}
+        ${Object.hasOwn(studios,id)?`<h3>${studios[id].title}</h3><p>Probier die Technik direkt aus und hol dir Rückmeldung.</p>${link('Übungsstudio öffnen','studio/'+id,'button secondary')}`:''}</section>
+      <section class="surface utility"><h2>Was du brauchst</h2><p>${esc(hobby.materials)}</p><h3>Wenn du hängen bleibst</h3><p>${lesson.trouble}</p>${link('Lerncoach fragen','hilfe/'+id,'text-button')}</section>
+      ${resourceList(id)}
+    </aside>
+  </div>`;
+}
+function resourceList(id,stage) {
+  const items=(resources[id]||[]).filter(([level])=>!stage||stage===level);
+  if(!items.length) return '';
+  return `<section class="surface utility resource-list"><h2>Videos & Anleitungen</h2><ul class="plain-list">${items.map(([level,name,source,url])=>`<li><div><small>${stages[level-1]} · ${source}</small><a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a></div></li>`).join('')}</ul></section>`;
 }
 function questPage(id, inviteCode='') {
   const quest=quests[id];
@@ -123,27 +166,136 @@ function questPage(id, inviteCode='') {
   const locked=!unlocks(state,quest);
   const planned=state.invites.find(invite=>invite.code===inviteCode&&invite.quest===id);
   if(quest.type==='Challenge'&&!planned) return challengePage(id);
-  return `<p>${link('Lernpfad ansehen','pfad/'+hobby.id,'text-button')}</p>${titleBlock(hobby.name+' · '+quest.type,quest.title,quest.steps[0])}
-  ${planned?`<div class="notice">Gemeinsame Quest für ${dateLabel(planned.day)}. ${planned.friendDone?'Die andere Person hat sie schon abgeschlossen.':''}</div>`:''}
+  return `<p>${link('Lernpfad ansehen','pfad/'+hobby.id,'text-button')}</p>${titleBlock(hobby.name+' · '+(stages[quest.stage-1]||quest.type),quest.title,quest.result)}
+  ${planned?`<div class="notice">Gemeinsame Quest für ${dateLabel(planned.day).replace(/\.$/,'')}. ${planned.friendDone?'Die andere Person hat sie schon abgeschlossen.':''}</div>`:''}
   <div class="detail-grid"><section class="surface mission">
     ${questInformation(quest,hobby)}
     ${locked?`<div class="notice">Diese Quest wird im Lernpfad freigeschaltet. ${link('Zum Lernpfad','pfad/'+hobby.id,'text-button')}</div>`:
       `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:''),'button primary')} ${btn('Einplanen','plan',id,'button secondary')} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
-  </section><aside class="surface utility"><div class="tile-icon lilac">✦</div><h2>Dein Ergebnis</h2><p>${quest.result}</p><h3>So passt du es an</h3><p>${quest.adapt}</p><h3>Danach</h3><p>${quest===hobby.quests.at(-1)?'Halte deinen Meilenstein fest und wiederhole eine Übung mit denselben Bedingungen.':'Schließe die Übung ab und wähle die nächste verfügbare Quest im Lernpfad.'}</p>${btn('Quest-Link kopieren','copy-quest',quest.id,'text-button')}</aside></div>`;
+  </section><aside class="academy-sidebar"><section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Dein Ergebnis</h2><p>${quest.result}</p><h3>So passt du es an</h3><p>${quest.adapt}</p><h3>Danach</h3><p>${quest.stage===4?'Halte fest, was du jetzt selbstständig kannst und was du beim nächsten Versuch ändern würdest.':'Schließe die Übung ab und wähle die nächste verfügbare Quest im Lernpfad.'}</p>${btn('Quest-Link kopieren','copy-quest',quest.id,'text-button')} ${link('Lerncoach fragen','hilfe/'+hobby.id,'text-button')}</section>${resourceList(hobby.id,quest.stage)}</aside></div>`;
 }
 function questInformation(quest,hobby) {
+  const checks=state.stepChecks[quest.id+':'+quest.version]||[];
+  const open=unlocks(state,quest);
   return `<div class="tags">${chip(svg('time')+' '+quest.minutes+' Min.') }${chip(svg('bolt')+' +'+quest.xp+' XP') }${chip(quest.type)}</div>
   <h2>Was du brauchst</h2><p>${quest.materials||hobby.materials}</p>
-  <h2>Was du übst</h2><p>${hobby.skill}. Am Ende hältst du dein Ergebnis fest.</p>
-  <h2>So geht’s</h2><ol class="steps">${quest.steps.map(step=>`<li>${esc(step.replace(/[.!?]$/,'')+'.')}</li>`).join('')}</ol>`;
+  <h2>Was du übst</h2><p>${lessons[hobby.id].technique}</p>
+  ${hobby.id==='scratch'?`<p>${link('Im Blocklabor vorüben','labor/'+(experiments[quest.stage-1]?.id||'sammeln'),'button secondary')} <a class="text-button" href="https://scratch.mit.edu/projects/editor/" target="_blank" rel="noopener noreferrer">Scratch-Editor öffnen</a></p>`:''}
+  <h2>Schritt für Schritt</h2>
+  ${open?`<p class="step-count" id="step-progress" aria-live="polite">${checks.length} / ${quest.steps.length} Schritte abgehakt</p>`:''}
+  <ol class="steps guided-steps">${quest.steps.map((step,index)=>{
+    const sentence=esc(/[.!?]$/.test(step)?step:step+'.');
+    return `<li>${open?`<label><input type="checkbox" data-quest-step="${quest.id}" value="${index}" ${checks.includes(index)?'checked':''}><span>${sentence}</span></label>`:sentence}</li>`;
+  }).join('')}</ol>`;
 }
 function missing() {
   return titleBlock('HOBBYMAXING','Seite nicht gefunden.','Entdecke einen anderen Lernpfad.')+link('Zum Hobby-Katalog','entdecken','button primary');
 }
 
+function quizPage(id) {
+  const hobby=byHobby[id], lesson=lessons[id];
+  if(!lesson) return missing();
+  const response=quizReplies[id];
+  const passed=Object.hasOwn(state.practice,'quiz-'+id);
+  return `<p>${link('Zurück zum Lernpfad','pfad/'+id,'text-button')}</p>
+  ${titleBlock('WISSENSCHECK · '+hobby.name,'Teste dein Wissen.','Wähle eine Antwort und erfahre, warum sie zur Situation passt.')}
+  <section class="surface mission narrow quiz">
+    <div class="tags">${chip('1 Min.')}${chip(passed?'20 XP erhalten':'+20 XP beim ersten Bestehen')}</div>
+    <form data-form="quiz" data-value="${id}"><fieldset><legend>${lesson.question}</legend>
+    ${questionOptions(id).map((option,index)=>`<label class="answer-option"><input type="radio" name="answer" value="${index}" required ${response?.index===index?'checked':''}><span>${option}</span></label>`).join('')}
+    </fieldset><button class="button primary">Antwort prüfen</button></form>
+    ${response?`<div id="quiz-feedback" class="feedback ${response.correct?'positive':'try-again'}" tabindex="-1"><strong>${response.correct?'Richtig!':'Versuch es noch einmal.'}</strong><p>${response.correct?lesson.feedback:lesson.trouble}</p>
+    ${response.correct?link('Lernpfad fortsetzen','pfad/'+id,'button secondary'):''}</div>`:''}
+    <details><summary>Techniktipp anzeigen</summary><p>${lesson.technique}</p></details>
+  </section>`;
+}
+function board(frame) {
+  return `<div class="lab-board" role="img" aria-label="Figur auf Feld ${frame.pos+1} von 5. ${frame.points} Punkte.">
+    ${Array.from({length:5},(_,i)=>`<div class="lab-cell ${i===frame.pos?'player-cell':''}"><span aria-hidden="true">${i===frame.pos?'●':i===3&&frame.star?'✦':''}</span></div>`).join('')}
+  </div>`;
+}
+function labPage(id) {
+  const exercise=id?experiments.find(item=>item.id===id):experiments.find(item=>!Object.hasOwn(state.practice,'lab-'+item.id))||experiments[0];
+  if(!exercise) return missing();
+  const index=experiments.indexOf(exercise);
+  const draft=labDrafts[exercise.id]||[];
+  const run=labRuns[exercise.id];
+  const cleared=Object.hasOwn(state.practice,'lab-'+exercise.id);
+  const available=experiments.slice(0,index).every(item=>Object.hasOwn(state.practice,'lab-'+item.id));
+  const frame=run?.frames.at(-1)||{pos:2,points:0,star:exercise.id==='sammeln'};
+  const eventNames={flag:'Start',rightKey:'Rechts',leftKey:'Links'};
+  return `<p>${link('Zum Scratch-Lernpfad','pfad/scratch','text-button')}</p>
+  ${titleBlock('SCRATCH-BLOCKLABOR','Programmiere deine Bühne.','Baue dein Programm aus Blöcken und starte einen Test. Die Bühne zeigt dir, wie deine Befehle wirken.')}
+  <nav class="bubble-row lab-nav" aria-label="Blocklabor-Aufgaben">${experiments.map((item,i)=>`<a class="pill" href="#labor/${item.id}" ${item===exercise?'aria-current="page"':''}>${Object.hasOwn(state.practice,'lab-'+item.id)?'✓':i+1} · ${item.title}</a>`).join('')}</nav>
+  ${!available?`<section class="surface mission narrow"><h2>${exercise.title}</h2><p>Schließe zuerst „${experiments[index-1].title}“ ab.</p>${link('Zu deiner nächsten Aufgabe','labor','button primary')}</section>`:
+    `<div class="detail-grid lab-grid"><section class="surface mission"><div class="tags">${chip(cleared?'25 XP erhalten':'+25 XP beim ersten Bestehen')}</div><h2>${exercise.title}</h2><p>${exercise.goal}</p><p>${exercise.idea}</p>
+    <div class="lab-palette"><h3>Blöcke hinzufügen</h3><div class="actions">${exercise.palette.map(key=>btn(blocks[key].label,'lab-add',exercise.id+'~'+key,'block '+blocks[key].kind)).join('')}</div></div>
+    <h3>Dein Programm</h3>${draft.length?`<ol class="program">${draft.map(key=>`<li><span class="block ${blocks[key].kind}">${blocks[key].label}</span></li>`).join('')}</ol>`:empty('Wähle einen Ereignisblock, um dein Programm zu beginnen.')}
+    <div class="actions">${btn('Programm testen','lab-run',exercise.id,'button primary')}${draft.length?btn('Letzten Block entfernen','lab-undo',exercise.id,'button secondary'):''}</div>
+    <details><summary>Tipp anzeigen</summary><p>${exercise.hint}</p></details></section>
+    <aside class="surface utility stage"><div class="section-title"><h2>Bühne</h2>${chip(frame.points+' Punkte')}</div>${board(frame)}
+    ${run?`<div id="lab-feedback" class="feedback ${run.pass?'positive':'try-again'}" tabindex="-1"><strong>${run.message}</strong>
+    ${run.frames.length?`<ul>${run.frames.map(item=>`<li>${eventNames[item.event]} · Feld ${item.pos+1} · ${item.points} Punkte</li>`).join('')}</ul>`:''}
+    ${run.pass?link(index===experiments.length-1?'Zum Scratch-Lernpfad':'Nächste Laboraufgabe',index===experiments.length-1?'pfad/scratch':'labor/'+experiments[index+1].id,'button secondary'):''}</div>`:
+    '<p class="stage-note">Beim Test lösen wir die Ereignisse für dich aus und zeigen jede Station.</p>'}</aside></div>`}`;
+}
+function studioPage(id) {
+  if(!Object.hasOwn(studios,id||'')) return missing();
+  const studio=studios[id], picked=studioDrafts[id]||[], reply=studioReplies[id];
+  const already=Object.hasOwn(state.practice,'studio-'+id);
+  const cells=Array.from({length:studio.rows*studio.size},(_,index)=>index);
+  return `<p>${link('Zurück zum Lernpfad','pfad/'+id,'text-button')}</p>
+  ${titleBlock('ÜBUNGSSTUDIO · '+byHobby[id].name,studio.title,studio.task)}
+  <div class="detail-grid"><section class="surface mission">
+  <div class="tags">${chip(already?'25 XP erhalten':'+25 XP beim ersten Bestehen')}</div><p>${studio.instruction}</p>
+  <div class="studio-board ${id} grid-${studio.size}" role="group" aria-label="Übungsfeld">
+  ${cells.map(index=>index===studio.origin?`<span class="studio-origin" aria-label="Weißer Springer auf d4">♘</span>`:`<button type="button" class="studio-cell" aria-label="${studioCell(id,index)}" aria-pressed="${picked.includes(index)}" data-action="studio-cell" data-value="${id}~${index}">${id==='schach'?studioCell(id,index):id==='beats'?(index<8?'K':'S'):''}</button>`).join('')}
+  </div>
+  <div class="actions studio-actions">${btn('Ergebnis prüfen','studio-check',id,'button primary')}${btn('Zurücksetzen','studio-reset',id,'button secondary')}${id==='beats'?btn('Beat abspielen','studio-play',id,'button secondary'):''}</div>
+  ${reply?`<div id="studio-feedback" tabindex="-1" class="feedback ${reply.pass?'positive':'try-again'}"><strong>${reply.pass?'Aufgabe bestanden!':'Schau noch einmal hin.'}</strong><p>${reply.pass?'Alle Felder sind richtig gesetzt.':reply.missing+' fehlen, '+reply.extra+' zusätzlich markiert.'}</p></div>`:''}</section>
+  ${studio.preview?`<aside class="surface utility"><h2>Vorlage</h2><div class="studio-board preview grid-5" role="img" aria-label="Pfeil nach oben aus elf Pixeln">${cells.map(index=>`<span class="studio-cell ${studio.solution.includes(index)?'filled':''}"></span>`).join('')}</div></aside>`:''}</div>`;
+}
+function supportPage(id) {
+  const hobby=byHobby[id];
+  const starters=hobby?['Was brauche ich?','Wie starte ich?','Ich hänge fest','Gibt es ein Video?']:['Wie sammle ich XP?','Wie funktioniert die Streak?','Wie funktionieren Rankings?'];
+  return `${titleBlock('HILFE & SUPPORT',hobby?'Lerncoach für '+hobby.name:'Wie können wir dir helfen?','Frage den Lerncoach zu deinem Hobby, einer Aufgabe oder deinem Spielfortschritt.')}
+  <div class="detail-grid"><section class="surface mission coach-panel"><div class="section-title"><div><h2>Lerncoach</h2><p>Antworten aus den Hobby-Anleitungen und Spielregeln. Deine Fragen bleiben in diesem Tab.</p></div></div>
+  <form data-form="coach" data-value="${hobby?.id||''}">
+    <label>Hobby<select name="hobby"><option value="">Allgemeine Hilfe</option>${hobbies.map(item=>`<option value="${item.id}" ${item===hobby?'selected':''}>${item.name}</option>`).join('')}</select></label>
+    <div class="actions coach-suggestions">${starters.map(prompt=>btn(esc(prompt),'coach-prompt',prompt,'pill')).join('')}</div>
+    <label>Deine Frage<textarea name="question" maxlength="300" required placeholder="Was möchtest du wissen?"></textarea></label><button class="button primary">Frage stellen</button>
+  </form><div class="coach-log" aria-live="polite">${coachHistory.map(item=>`<article><p class="coach-question"><strong>Du${item.name?' · '+item.name:''}</strong><br>${esc(item.question)}</p><div class="coach-reply"><strong>Lerncoach</strong><p>${esc(item.text)}</p>${item.route?link('Passenden Bereich öffnen',item.route,'text-button'):''}</div></article>`).join('')}</div></section>
+  <aside class="academy-sidebar"><section class="surface utility"><h2>Häufige Fragen</h2>${helpTopics.map(([question,answer])=>`<details><summary>${question}</summary><p>${answer}</p></details>`).join('')}</section>
+  <section class="surface utility"><h2>Eine Frage ans Projekt stellen</h2><p>Fragen, Fehler und Vorschläge kannst du auf GitHub einreichen. Beiträge sind öffentlich und benötigen ein GitHub-Konto.</p>
+  <a class="button secondary" href="https://github.com/Faulixx11/Hobbymaxing/issues/new" target="_blank" rel="noopener noreferrer">GitHub-Support öffnen</a></section></aside></div>`;
+}
+function rankingRows(rows,quest,{actions=false}={}) {
+  if(!rows.length) return empty('Noch keine Ergebnisse in diesem Zeitraum.');
+  return `<ol class="ranking">${rows.map(row=>{
+    const position=quest.max?rows.findIndex(other=>other.score===row.score)+1:'✦';
+    const result=quest.max?row.score+(quest.max<999?' / '+quest.max:''):row.result;
+    return `<li><span class="rank-number">${position}</span><strong>${esc(row.name)}${row.mine?' <small>(du)</small>':''}</strong><span>${esc(result)}</span>
+    ${actions?(row.mine?btn('Teilen','share',row.id,'text-button'):btn('Entfernen','remove-score',rankId(row),'text-button')):''}</li>`;
+  }).join('')}</ol>`;
+}
+function rankingPage(view) {
+  const current=monday();
+  const known=[...new Set([current,...state.entries.filter(entry=>entry.quest.startsWith('challenge-')).map(entry=>entry.week),...state.scores.map(entry=>entry.week)])].sort().reverse();
+  const week=view==='gesamt'?null:known.includes(view)?view:current;
+  return `${titleBlock('RANGLISTEN','Miss dich bei derselben Aufgabe.','Wähle eine Rangliste und vergleiche Ergebnisse unter vergleichbaren Bedingungen. Bei Gleichstand teilen sich die Ergebnisse einen Platz.')}
+  <section class="surface utility rank-controls"><form data-form="ranking">
+    <label>Zeitraum<select name="period"><option value="gesamt" ${week===null?'selected':''}>Gesamtbestwerte</option>
+    ${known.map(day=>`<option value="${day}" ${week===day?'selected':''}>${day===current?'Diese Woche · ':''}${weekRange(day)}</option>`).join('')}</select></label>
+    <button class="button secondary">Zeitraum anzeigen</button></form><p>Diese Ranglisten zeigen deine Ergebnisse und manuell importierte Beiträge. Die Werte sind Selbstauskünfte.</p>${btn('Ergebnislink importieren','import','','button secondary')}</section>
+  <div class="rank-grid section">${challenges.filter(quest=>quest.max).map(quest=>`<section class="surface utility">
+    <div class="tile-icon lilac">${quest.icon}</div><h2>${quest.title}</h2><p>${quest.result}</p>${rankingRows(leaderboard(state,quest,week),quest)}
+    ${link('Regeln & Ergebnis','challenge/'+quest.id,'button secondary')}</section>`).join('')}</div>`;
+}
+
 function challengeIndex() {
   return `${titleBlock('CHALLENGES','Zusammen macht’s mehr Spaß.','Wähle eine Wochenaufgabe, sammle ein Ergebnis und vergleiche es mit deinen Freunden.')}
     <p class="notice">${weekRange(monday())} · Trage eigene Ergebnisse ein und importiere Beiträge über geteilte Links. Alle Ergebnisse sind Selbstauskünfte.</p>
+    <p>${link('Alle Ranglisten ansehen','ranglisten','button primary')}</p>
     <div class="hobby-grid catalog-grid">${challenges.map(quest=>`<a class="hobby-card surface" href="#challenge/${quest.id}"><div class="card-art ${quest.group}"><span>${quest.icon}</span></div><div class="card-content">
     <p class="eyebrow">${quest.max?'RANGLISTE':'GALERIE'}</p><h3>${quest.title}</h3><p>${quest.result}</p><div class="card-meta"><span>${quest.minutes} Min.</span><span>+${quest.xp} XP</span></div></div></a>`).join('')}</div>
     <section class="section"><h2>Gemeinsame Quests</h2>${invitesList()}</section>`;
@@ -153,16 +305,11 @@ function challengePage(id) {
   if(!quest) return missing();
   const rows=leaderboard(state,quest);
   const ranking=quest.max>0;
-  const previous=rows.length?rows.map((row,index)=>{
-    const tied=ranking?rows.findIndex(other=>other.score===row.score)+1:null;
-    const value=ranking?row.score+(quest.max===10?' / 10':''):row.result;
-    return `<li><span class="rank-number">${ranking?tied:'✦'}</span><strong>${esc(row.name)}${row.mine?' <small>(du)</small>':''}</strong><span>${esc(value)}</span>${row.mine?btn('Teilen','share',row.id,'text-button'):btn('Entfernen','remove-score',rankId(row),'text-button')}</li>`;
-  }).join(''):'';
   return `<p>${link('Alle Challenges','challenges','text-button')}</p>${titleBlock('WOCHEN-CHALLENGE',quest.title,weekRange(monday()))}
   <div class="detail-grid"><section class="surface mission">${questInformation(quest,byHobby[quest.hobby])}${btn('Ergebnis eintragen','finish',id,'button primary')} ${btn('Gemeinsam machen','invite',id,'button secondary')}
   <h3>So passt du es an</h3><p>${quest.adapt}</p></section>
   <aside class="surface utility"><div class="tile-icon lilac">${svg('trophy')}</div><h2>${ranking?'Deine private Rangliste':'Deine private Galerie'}</h2><p>${ranking?'Gleiche Bedingungen für alle. Pro Person zählt das beste Ergebnis dieser Woche.':'Hier sammelst du deine eigenen und importierte Beiträge aus dieser Woche.'}</p>
-  ${rows.length?`<ol class="ranking">${previous}</ol>`:empty('Hier ist noch Platz für dein erstes Ergebnis.') }${btn('Ergebnislink importieren','import','','button secondary')} ${btn('Challenge-Link kopieren','copy-quest',id,'text-button')}</aside></div>`;
+  ${rankingRows(rows,quest,{actions:true})}${btn('Ergebnislink importieren','import','','button secondary')} ${btn('Challenge-Link kopieren','copy-quest',id,'text-button')} ${ranking?link('Zeiträume und Bestwerte','ranglisten','text-button'):''}</aside></div>`;
 }
 function invitesList() {
   return state.invites.length?`<div class="stack">${state.invites.map(invite=>`<article class="surface list-row"><div><h3>${quests[invite.quest].title}</h3><p>${dateLabel(invite.day)} · ${invite.done&&invite.friendDone?'Gemeinsam erledigt':invite.done?'Du bist fertig':invite.friendDone?'Dein Gegenüber ist fertig':'Geplant'}</p></div><div class="actions">${link('Quest ansehen','quest/'+invite.quest+'/'+invite.code,'button secondary')}${btn('Einladung teilen','share-invite',invite.code,'text-button')}${btn('Entfernen','remove-invite',invite.code,'text-button')}</div></article>`).join('')}</div>`:empty('Öffne eine Quest und wähle „Gemeinsam machen“, um einen Einladungslink zu erstellen.');
@@ -181,6 +328,7 @@ function weekPage() {
 }
 function profilePage() {
   const {running,best}=streaks(state);
+  const daily=dailyStreak(state);
   const bests=new Map();
   for(const entry of state.entries) {
     if(entry.score===null) continue;
@@ -188,7 +336,7 @@ function profilePage() {
     if(!bests.has(id)||bests.get(id).score<entry.score) bests.set(id,entry);
   }
   return `${titleBlock('DEIN PROFIL',state.name?'Hi, '+esc(state.name)+'.':'Dein Projektbuch.','Hier findest du die Quests, Projekte und persönlichen Bestleistungen, die du gesammelt hast.')}
-    <div class="stat-grid"><div class="surface stat"><span>${svg('bolt')} Erfahrung</span><strong>${totalXp(state)} XP</strong></div><div class="surface stat"><span>✦ Aktuelle Wochenserie</span><strong>${running} Wo.</strong></div><div class="surface stat"><span>${svg('trophy')} Beste Wochenserie</span><strong>${best} Wo.</strong></div></div>
+    <div class="stat-grid"><div class="surface stat"><span>${svg('bolt')} Erfahrung</span><strong>${totalXp(state)} XP</strong></div><div class="surface stat"><span>${svg('flame')} Tagesstreak</span><strong>${daily.running} T.</strong><small>Bestwert: ${daily.best} Tage</small></div><div class="surface stat"><span>✦ Aktuelle Wochenserie</span><strong>${running} Wo.</strong></div><div class="surface stat"><span>${svg('trophy')} Beste Wochenserie</span><strong>${best} Wo.</strong></div></div>
     <div class="detail-grid section"><section class="surface mission"><h2>Projektbuch</h2>${state.entries.length?`<ul class="plain-list timeline">${state.entries.map(entry=>`<li><div><small>${dateLabel(entry.day)} · ${quests[entry.quest].type}</small><h3><a href="#quest/${entry.quest}">${quests[entry.quest].title}</a></h3><p>${entry.score==null?'':entry.score+' · '}${esc(entry.result)}</p>${entry.note?`<p>${esc(entry.note)}</p>`:''}</div>${btn('Erfolgskarte','card',entry.id,'text-button')}</li>`).join('')}</ul>`:empty('Schließe deine erste Quest ab. Dann taucht sie hier auf.') }
     <h2>Abgeschlossene Wochenvorhaben</h2>${state.journeys.map(id=>journeys.find(journey=>journey.id===id)).filter(journey=>journey.quests.every(id=>completed(state,id))).map(journey=>`<p>${journey.icon} ${journey.title}</p>`).join('')||empty('Deine fertigen Wochenvorhaben erscheinen hier.')}</section>
     <aside class="surface utility"><h2>Deine Hobbys</h2>${state.active.length?`<ul class="levels">${state.active.map(id=>`<li><a href="#pfad/${id}">${byHobby[id].icon} ${byHobby[id].name}</a><strong>Level ${level(state,byHobby[id])}</strong></li>`).join('')}</ul>`:empty('Noch keine Hobbys gemerkt.')}
@@ -222,10 +370,10 @@ function sharedPage(code) {
 }
 function render() {
   const [page,id,param]=location.hash.slice(1).split('/');
-  const selected=({pfad:'entdecken',quest:'entdecken',challenge:'challenges',woche:'heute'})[page]||page||'heute';
+  const selected=({pfad:'entdecken',quest:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',challenge:'challenges',ranglisten:'challenges',woche:'heute'})[page]||page||'heute';
   nav.innerHTML=navigation.map(([route,label,icon])=>`<a href="#${route}" ${route===selected?'aria-current="page"':''}>${svg(icon)}<span>${label}</span></a>`).join('');
   top.innerHTML=`<div class="top-left"><span class="mobile-mark mark">✳</span><div><p>${new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</p><strong>${state.name?'Hi, '+esc(state.name):'Willkommen bei Hobbymaxing'}</strong></div></div><div class="top-stats"><a class="xp-chip" href="#profil">${svg('bolt')} <strong>${totalXp(state)} XP</strong></a><a class="avatar" href="#profil" aria-label="Profil">${state.name?esc(Array.from(state.name)[0].toLocaleUpperCase('de')):svg('user')}</a></div>`;
-  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,challenges:challengeIndex,challenge:challengePage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
+  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,wissen:quizPage,labor:labPage,studio:studioPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
   main.innerHTML=(Object.hasOwn(views,page||'heute')?views[page||'heute']:missing)(id,param);
 }
 function openModal(title,contents) {
@@ -287,6 +435,75 @@ document.addEventListener('click',event=>{
   const {action:kind,value}=action.dataset;
   switch(kind) {
     case 'close': modal.close(); break;
+    case 'coach-prompt': {
+      const form=action.closest('form');
+      form.elements.question.value=value;
+      form.requestSubmit();
+      break;
+    }
+    case 'studio-cell':
+    case 'studio-check':
+    case 'studio-reset':
+    case 'studio-play': {
+      const [id,cell]=value.split('~');
+      if(!Object.hasOwn(studios,id)) return;
+      const draft=studioDrafts[id] ??= [];
+      if(kind==='studio-play') {
+        if(!draft.length) {alertUser('Setze zuerst mindestens einen Schlag.'); break;}
+        action.disabled=true;
+        playBeat([...draft]).catch(()=>alertUser('Dein Browser konnte die Audiospur nicht abspielen.')).finally(()=>{action.disabled=false;});
+        break;
+      }
+      if(kind==='studio-cell') {
+        const index=Number(cell), at=draft.indexOf(index);
+        if(at===-1) draft.push(index);
+        else draft.splice(at,1);
+        delete studioReplies[id];
+        action.setAttribute('aria-pressed',String(at===-1));
+        main.querySelector('#studio-feedback')?.remove();
+        break;
+      }
+      if(kind==='studio-reset') {
+        studioDrafts[id]=[];
+        delete studioReplies[id];
+      } else {
+        const reply=checkStudio(id,draft);
+        studioReplies[id]=reply;
+        if(reply.pass&&!Object.hasOwn(state.practice,'studio-'+id)) {
+          if(save(latest=>earnPractice(latest,'studio-'+id,25),{refresh:false})) alertUser('+25 XP · Studioaufgabe bestanden');
+        }
+      }
+      render();
+      if(kind==='studio-check') main.querySelector('#studio-feedback')?.focus();
+      else main.querySelector('[data-action="studio-reset"]')?.focus();
+      break;
+    }
+    case 'lab-add':
+    case 'lab-undo':
+    case 'lab-run': {
+      const [id,block]=value.split('~');
+      const exercise=experiments.find(item=>item.id===id);
+      if(!exercise||!experiments.slice(0,experiments.indexOf(exercise)).every(item=>Object.hasOwn(state.practice,'lab-'+item.id))) return;
+      const draft=labDrafts[id] ??= [];
+      if(kind==='lab-add') {
+        if(draft.length===12) {alertUser('Bis zu zwölf Blöcke passen in diese Übung.'); break;}
+        if(exercise.palette.includes(block)) draft.push(block);
+      } else if(kind==='lab-undo') draft.pop();
+      if(kind==='lab-run') {
+        const run=runBlocks(draft,exercise);
+        labRuns[id]=run;
+        if(run?.pass&&!Object.hasOwn(state.practice,'lab-'+id)) {
+          if(save(latest=>earnPractice(latest,'lab-'+id,25),{refresh:false})) alertUser('+25 XP · Laboraufgabe bestanden');
+        }
+      } else delete labRuns[id];
+      render();
+      if(kind==='lab-run') main.querySelector('#lab-feedback')?.focus();
+      else {
+        const matching=[...main.querySelectorAll('[data-action="'+kind+'"]')].find(button=>button.dataset.value===value);
+        (matching||main.querySelector('[data-action="lab-run"]'))?.focus();
+      }
+      break;
+    }
     case 'quick':
       filter={group:'all',query:'',place:value==='home'?'Zu Hause':'',gear:'',time:value==='time'?'10':'',stage:value==='new'?'Einstieg':''};
       location.hash='entdecken';
@@ -361,6 +578,34 @@ document.addEventListener('submit',event=>{
   const values=new FormData(form);
   const id=form.dataset.value;
   switch(form.dataset.form) {
+    case 'coach': {
+      const selected=values.get('hobby');
+      const question=values.get('question').trim().slice(0,300);
+      if(!question) return;
+      coachHistory=[...coachHistory,{question,name:byHobby[selected]?.name,...coachReply(state,selected,question)}].slice(-12);
+      const path='hilfe'+(byHobby[selected]?'/'+selected:'');
+      if(location.hash==='#'+path) {
+        render();
+        main.querySelector('textarea[name="question"]')?.focus();
+      } else location.hash=path;
+      break;
+    }
+    case 'quiz': {
+      const lesson=lessons[id];
+      const index=Number(values.get('answer'));
+      if(!lesson||!Number.isInteger(index)||index<0||index>2) return;
+      const correct=questionOptions(id)[index]===lesson.correct;
+      quizReplies[id]={index,correct};
+      if(correct&&!Object.hasOwn(state.practice,'quiz-'+id)) {
+        if(save(latest=>earnPractice(latest,'quiz-'+id,20),{refresh:false})) alertUser('+20 XP · Wissenscheck bestanden');
+      }
+      render();
+      main.querySelector('#quiz-feedback')?.focus();
+      break;
+    }
+    case 'ranking':
+      location.hash='ranglisten/'+values.get('period');
+      break;
     case 'finish': {
       const [questId,invite='']=id.split('~');
       const quest=quests[questId];
@@ -423,6 +668,23 @@ document.addEventListener('input',event=>{
   if(event.target.form?.id!=='filters') return;
   filter[event.target.name]=event.target.value;
   document.querySelector('#results').innerHTML=catalogResults();
+});
+document.addEventListener('change',event=>{
+  const control=event.target;
+  const quest=quests[control.dataset?.questStep];
+  if(!quest) return;
+  const index=Number(control.value);
+  if(!Number.isInteger(index)||index<0||index>=quest.steps.length) return;
+  const key=quest.id+':'+quest.version;
+  if(save(latest=>{
+    if(!unlocks(latest,quest)) return false;
+    const checked=new Set(latest.stepChecks[key]||[]);
+    if(control.checked) checked.add(index);
+    else checked.delete(index);
+    latest.stepChecks[key]=[...checked];
+  },{refresh:false})) {
+    main.querySelector('#step-progress').textContent=state.stepChecks[key].length+' / '+quest.steps.length+' Schritte abgehakt';
+  } else control.checked=!control.checked;
 });
 window.addEventListener('hashchange',()=>{
   if(location.hash==='#main') { main.focus(); return; }

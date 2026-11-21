@@ -1,3 +1,5 @@
+import { masterProjects } from './projects.mjs';
+
 export const groups = [
   ['sport','Sport & Bewegung','↗'], ['natur','Natur & Draußen','❋'],
   ['kunst','Kunst & Medien','◈'], ['musik','Musik & Bühne','♫'],
@@ -86,6 +88,7 @@ export const hobbies = rows.trim().split('\n').map(line => {
 const extra = [
   {hobby:'fussball',id:'fussball-ziel',title:'Zielgenauigkeit testen',minutes:15,type:'Training',requires:['fussball-1'],steps:['Nutze wieder die gleiche Zielbreite und Entfernung.','Spiele zehn flache Pässe mit deinem stärkeren Fuß.','Notiere das Ergebnis und den Fuß, damit du später denselben Vergleich machen kannst.'],result:'Treffer aus zehn Pässen',max:10},
   {hobby:'tennis',id:'tennis-wand',title:'Wandspiel mit einem Aufsprung',minutes:20,type:'Training',requires:['tennis-1'],steps:['Suche eine geeignete und erlaubte Tenniswand mit freier Fläche.','Spiele ruhige, kurze Bälle und lass den Rückprall einmal aufspringen.','Teste drei Serien und notiere die längste.'],result:'Längste Serie an derselben Wand',max:999},
+  {hobby:'scratch',id:'scratch-animation',title:'Eine Animation mit Start und Wiederholung',minutes:20,type:'Training',requires:['scratch-1'],steps:['Setze unter „Wenn grüne Flagge angeklickt“ den Block „gehe zu x: 0 y: 0“, damit jeder Start gleich beginnt.','Setze in „wiederhole 4 mal“ die Blöcke „ändere x um 15“, „wechsle zum nächsten Kostüm“ und „warte 0.2 Sekunden“.','Starte zweimal. Prüfe, ob die Figur am gleichen Ort beginnt und sich bei beiden Läufen gleich verhält.'],result:'Eine Animation mit vier wiederholbaren Schritten',max:0},
   {hobby:'kochen',id:'kochen-timing',title:'Zwei Teile, ein Serviermoment',minutes:25,type:'Training',requires:['kochen-1'],steps:['Schreibe die Garzeiten von Nudeln und Sauce auf.','Rechne vom Servierzeitpunkt rückwärts und starte beide Komponenten passend.','Notiere, welches Element du beim nächsten Mal früher oder später beginnen würdest.'],result:'Ein Zeitplan mit Startzeiten',max:0}
 ];
 for (const item of extra) {
@@ -93,6 +96,28 @@ for (const item of extra) {
   hobby.quests.splice(2,0,{version:1,xp:45,adapt:fallback[hobby.group],...item});
   hobby.quests.at(-1).requires.push(item.id);
   hobby.quests.at(-1).any = true;
+}
+
+const scratchLessons = [
+  ['Öffne den Scratch-Editor. Rechts ist die Bühne mit deiner ersten Figur. Wähle links die gelbe Kategorie „Ereignisse“.','Ziehe „Wenn grüne Flagge angeklickt“ in die Mitte. Hänge aus „Bewegung“ den blauen Block „gehe 10er-Schritt“ direkt darunter.','Klicke oben über der Bühne auf die grüne Flagge. Setze die Schrittzahl auf 30 und vergleiche die Bewegung beim nächsten Klick.'],
+  ['Wähle deine Figur. Ziehe „Wenn Taste Leertaste gedrückt“ aus „Ereignisse“ in den Skriptbereich und wähle im Menü „Pfeil nach rechts“.','Hänge aus „Bewegung“ den Block „ändere x um 10“ darunter. Baue daneben ein zweites Skript für „Pfeil nach links“ mit „ändere x um -10“.','Klicke auf die Bühne und probiere beide Pfeiltasten. Nach einem Rechts- und einem Linksschritt sollte die Figur wieder an ihrer ursprünglichen Stelle sein.'],
+  ['Füge eine Sammelfigur hinzu und nenne sie „Stern“. Lege unter „Variablen“ die Variable „Punkte“ für alle Figuren an.','Wähle den Stern. Staple Start, „setze Punkte auf 0“ und „wiederhole fortlaufend“. Setze darin „falls <wird Spieler berührt? >, dann“ ein und wähle deine Spielfigur im Fühler-Block aus.','Lege in die Bedingung „ändere Punkte um 1“ und eine Bewegung des Sterns zu einem anderen erreichbaren Feld. Teste, ob eine Berührung zählt und ein Neustart die Punkte auf null setzt.']
+];
+for (const [index,steps] of scratchLessons.entries()) {
+  const quest=hobbies.find(hobby=>hobby.id==='scratch').quests.find(quest=>quest.id==='scratch-'+(index+1));
+  quest.steps=steps;
+  quest.version=2;
+}
+
+for (const hobby of hobbies) {
+  const last=hobby.quests.at(-1);
+  hobby.quests.push({
+    ...masterProjects[hobby.id],id:hobby.id+'-meisterwerk',hobby:hobby.id,version:1,minutes:30,
+    xp:100,requires:[last.id],type:'Projekt',adapt:fallback[hobby.group],max:0,stage:4
+  });
+  for (const quest of hobby.quests) {
+    quest.stage ||= quest.requires.length===0?1:quest.requires.includes(hobby.id+'-1')?2:3;
+  }
 }
 
 export const byHobby = Object.assign(Object.create(null),Object.fromEntries(hobbies.map(hobby=>[hobby.id,hobby])));
@@ -105,6 +130,14 @@ export const challenges = [
   {id:'gericht',title:'Drei Zutaten, ein Gericht',icon:'🍳',group:'kueche',hobby:'kochen',minutes:25,version:1,type:'Challenge',xp:40,max:0,result:'Name des Gerichts',materials:'Küche und drei selbst gewählte Zutaten',steps:['Wähle drei Hauptzutaten und plane ein einfaches Gericht.','Bereite es zu und notiere, welche Zutat den Charakter bestimmt.','Gib deinem Gericht einen Namen für die Galerie.'],adapt:'Halte das Gericht klein und nimm vertraute Zutaten oder ein einfaches Grundrezept.'}
 ].map(challenge=>({...challenge,id:'challenge-'+challenge.id,requires:[]}));
 for (const challenge of challenges) quests[challenge.id]=challenge;
+for (const detail of [
+  {id:'jonglage',title:'20 ruhige Fänge',hobby:'jonglieren',icon:'🤹',minutes:10,max:20,result:'Saubere Fänge aus 20 Würfen',materials:'Ein weiches Säckchen oder gerollte Socken und freie Fläche',steps:['Stell dich stabil hin und halte die Hände ungefähr auf Taillenhöhe.','Wirf 20-mal abwechselnd von einer Hand in die andere, etwa bis auf Augenhöhe.','Zähle Fänge ohne Schritt und ohne Bodenkontakt. Der nächste Wurf beginnt wieder in der Grundstellung.']},
+  {id:'korb',title:'Zehn Würfe aus Korbnähe',hobby:'basketball',icon:'🏀',minutes:15,max:10,result:'Treffer aus zehn Würfen',materials:'Basketball, ein 3,05 m hoher Korb und ein sicherer Platz',steps:['Markiere 1,5 Meter vor der Mitte unter dem Korb.','Wirf zehnmal von der Markierung aus dem Stand und hole den Ball nach jedem Wurf.','Zähle Körbe durch den Ring. Mache nur einen Wertungsdurchgang pro Ergebnis.']}
+]) {
+  const challenge={...detail,id:'challenge-'+detail.id,version:1,type:'Challenge',xp:40,requires:[],group:byHobby[detail.hobby].group,adapt:fallback[byHobby[detail.hobby].group]};
+  challenges.push(challenge);
+  quests[challenge.id]=challenge;
+}
 export const journeys = [
   {id:'kreativ',title:'Dein kreatives Wochenende',icon:'🎨',text:'Sammle draußen Motive und zeichne eines davon.',quests:['fotografie-1','zeichnen-1']},
   {id:'freunde',title:'Ein Sonntag mit Freunden',icon:'🍝',text:'Verabredet euch zum Kochen und probiert die Pass-Challenge.',quests:['kochen-1','challenge-pass']},

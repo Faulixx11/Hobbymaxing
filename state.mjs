@@ -1,6 +1,6 @@
-import { byHobby, quests } from './catalog.mjs';
+import { byHobby, quests } from './catalog.mjs?v=03';
 
-export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[]});
+export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, stepChecks:{}});
 export const key = 'hobbymaxing-v1';
 export function load(storage) {
   try { return {...initial(), ...JSON.parse(storage.getItem(key) || '{}')}; } catch { return initial(); }
@@ -43,15 +43,30 @@ export function unlocks(state, quest) {
   return quest.any ? quest.requires.some(id=>completed(state,id)) : quest.requires.every(id=>completed(state,id));
 }
 export function level(state, hobby) {
-  const path = hobby.quests;
-  if (completed(state,path.at(-1).id)) return 3;
-  return completed(state,path[0].id) ? 2 : 1;
+  if (completed(state,hobby.id+'-meisterwerk')) return 4;
+  if (completed(state,hobby.id+'-3')) return 3;
+  return completed(state,hobby.id+'-1') ? 2 : 1;
 }
 export function nextQuest(state,hobby) {
   return hobby.quests.find(quest=>!completed(state,quest.id)&&unlocks(state,quest));
 }
 export function totalXp(state) {
-  return state.entries.reduce((sum,entry)=>sum+entry.xp,0);
+  return state.entries.reduce((sum,entry)=>sum+entry.xp,0)+Object.values(state.practice).reduce((sum,entry)=>sum+entry.xp,0);
+}
+export function earnPractice(state,id,xp,today=localDate()) {
+  if(Object.hasOwn(state.practice,id)) return false;
+  state.practice[id]={day:today,xp};
+  return true;
+}
+export function dailyStreak(state,today=localDate()) {
+  const days=[...new Set([...state.entries.map(entry=>entry.day),...Object.values(state.practice).map(entry=>entry.day)])].filter(day=>day<=today).sort();
+  let best=0, running=0, prior='';
+  for(const day of days) {
+    running=prior&&shift(prior,1)===day?running+1:1;
+    best=Math.max(best,running);
+    prior=day;
+  }
+  return {best,running:prior===today||prior===shift(today,-1)?running:0,doneToday:prior===today};
 }
 export function sameConditions(a,b) {
   return a.quest===b.quest && a.version===b.version && a.condition===b.condition;
@@ -92,9 +107,16 @@ export function badges(state) {
   ];
 }
 export function leaderboard(state, challenge, week=monday()) {
-  const mine=state.entries.filter(entry=>entry.quest===challenge.id&&entry.week===week&&entry.version===challenge.version);
+  const match=entry=>entry.quest===challenge.id&&(!week||entry.week===week)&&entry.version===challenge.version;
+  const mine=state.entries.filter(match);
   const best=challenge.max?mine.sort((a,b)=>b.score-a.score||a.time.localeCompare(b.time))[0]:mine[0];
-  const rows=state.scores.filter(item=>item.quest===challenge.id&&item.week===week&&item.version===challenge.version);
+  const scores=new Map();
+  for(const entry of state.scores.filter(match)) {
+    const id=entry.player||entry.name.trim().toLowerCase();
+    const existing=scores.get(id);
+    if(!existing || (challenge.max ? existing.score<entry.score : existing.week<entry.week)) scores.set(id,entry);
+  }
+  const rows=[...scores.values()];
   if (best) rows.push({...best,name:state.name||'Du',mine:true});
   return challenge.max ? rows.sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)) : rows;
 }

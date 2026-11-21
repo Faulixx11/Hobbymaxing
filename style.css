@@ -221,3 +221,91 @@ dialog::backdrop { background: #1c261ab0; }
   .avatar { display: none; }
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition: none !important; } }
+.academy-layout { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(245px,1fr); gap:20px; align-items:start; }
+.academy-sidebar { display:grid; gap:14px; }
+.hobby-intro p { max-width:70ch; }
+.hobby-intro .tags { margin-top:15px; }
+.academy-path { list-style:none; margin:0; padding:0; }
+.academy-stop { position:relative; display:grid; grid-template-columns:55px minmax(0,1fr); gap:13px; padding-bottom:24px; isolation:isolate; }
+.academy-stop:not(:last-child)::before { content:''; position:absolute; z-index:-1; inset:20px auto -18px 25px; width:4px; border-radius:99px; background:#dce4d2; }
+.academy-stop.cleared::before { background:#97bd5b; }
+.academy-node { width:54px;height:54px;display:grid;place-items:center;border:2px solid #c6d3bb;border-radius:17px;background:#edf1e9;color:#4d5b46;font-weight:850;font-size:1.2rem;box-shadow:0 3px #dce4d6; }
+.academy-node.next,.academy-stop.cleared .academy-node { background:#d4f578; border-color:#9abb58; box-shadow:0 3px #9abb58; color:#273d1d; }
+.stage-heading { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:5px; margin:2px 0 8px; }
+.stage-heading h3 { font-size:1.3rem; }
+.stage-heading span { border:1px solid #dce4d4; border-radius:99px; background:#edf2e8; padding:.23rem .5rem; font-size:.77rem; color:#40523b; font-weight:700; }
+.academy-stop.unlocked .stage-heading span { background:#e8f6c9; border-color:#c0d89b; }
+.station-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,185px),1fr)); gap:8px; }
+.station-options h4 { font-size:1.05rem; margin:.22rem 0; line-height:1.2; }
+.station-options .path-body { min-width:0; }
+.station-options small,.resource-list small { color:#4c5d46; }
+.resource-list small,.resource-list a { display:block; }
+.resource-list small { margin-bottom:4px; }
+.guided-steps li { border-bottom:1px solid var(--line); }
+.guided-steps label { display:flex; align-items:start; gap:9px; cursor:pointer; }
+.guided-steps input,.answer-option input { width:1.15rem; min-width:1.15rem; height:1.15rem; min-height:0; margin:3px 0 0; accent-color:#52772b; }
+.guided-steps input:checked + span { color:#456539; }
+.step-count { font-size:.88rem;font-weight:700; }
+.ember { background:#fbe4d1;color:#8c431c; }
+.streak-card,.practice-promo { display:flex; align-items:center; gap:12px; padding:15px; }
+.streak-card h2,.practice-promo h2 { font-size:1.14rem; }
+.streak-card p,.practice-promo p { margin:4px 0 0; font-size:.86rem; }
+.practice-promo .button { margin-left:auto; flex-shrink:0; }
+.quiz fieldset { margin:4px 0 0; padding:0; border:0; min-width:0; }
+.quiz legend { font-size:1.12rem; font-weight:750; margin-bottom:8px; }
+.answer-option { display:flex !important; align-items:start; padding:11px; border:1px solid var(--line); border-radius:10px; margin-bottom:6px; font-weight:550 !important; }
+.answer-option:has(input:checked) { background:#eef7df; border-color:#9ab978; }
+.feedback { padding:12px; margin:12px 0; border-radius:12px; background:#f7eee0; border:1px solid #e7d7bc; }
+.feedback.positive { background:#eaf5d9; border-color:#c2da97; }
+.feedback p { margin:4px 0; }
+.surface details { margin-top:9px; border-top:1px solid var(--line); padding-top:9px; }
+.surface summary { cursor:pointer; color:#3e6030; font-weight:740; }
+.lab-nav [aria-current] { background:#e8f5ce; border-color:#a7bd91; }
+.lab-palette { padding:10px 0; }
+.lab-palette h3 { margin:0 0 8px; }
+.block { display:inline-flex; align-items:center; min-height:36px; padding:6px 10px; font-size:.84rem; font-weight:700; border:1px solid transparent; border-radius:10px; color:#23311c; }
+.block.event { background:#ffe2a3;border-color:#e9c275; }
+.block.move { background:#dce8ff;border-color:#b4c5ed; }
+.block.state { background:#efdff9;border-color:#d1b3e7; }
+button.block:hover { filter:brightness(.96); }
+.program { display:grid; gap:4px; padding-left:26px; }
+.program li { padding:2px 0; }
+.lab-board { display:grid; grid-template-columns:repeat(5,1fr); border:1px solid #d4dfce; border-radius:16px; gap:4px; padding:8px; background:#e6eddf; }
+.lab-cell { height:clamp(38px,5vw,70px); border-radius:10px; display:grid; place-items:center; background:#f7faf5; color:#936719; font-size:1.5rem; }
+.lab-cell.player-cell span { display:grid; place-items:center; width:35px; height:35px; border-radius:13px; background:var(--lime); color:#344a21; border:1px solid #90ad51; }
+.stage-note { margin:12px 0 0; }
+.coach-log { display:grid; gap:12px; }
+.coach-log article { border-top:1px solid var(--line); padding-top:10px; }
+.coach-log article:first-child { margin-top:14px; }
+.coach-question { max-width:min(82%,60ch); margin-left:auto; padding:9px 12px; background:#eef1fa; border-radius:12px; overflow-wrap:anywhere; }
+.coach-reply { max-width:min(94%,64ch); background:#eef5e6; padding:9px 12px; border-radius:12px; }
+.coach-reply p { margin:3px 0; }
+.rank-controls form { display:flex; flex-wrap:wrap; align-items:end; }
+.rank-controls label { flex:0 1 320px; }
+.rank-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr)); gap:13px; }
+.stat-grid { grid-template-columns:repeat(4,1fr); }
+.stat small { color:var(--muted); }
+.studio-board { display:grid; gap:4px; width:min(100%,390px); margin:14px 0; }
+.studio-board.grid-5 { grid-template-columns:repeat(5,minmax(0,1fr)); width:min(100%,255px); }
+.studio-board.grid-8 { grid-template-columns:repeat(8,minmax(0,1fr)); }
+.studio-cell,.studio-origin { aspect-ratio:1; min-width:0; display:grid; place-items:center; padding:0; border:1px solid #dce4d2; border-radius:6px; background:#f2f6ef; font-size:.78rem; font-weight:730; color:#30472c; }
+.studio-board.schach .studio-cell:nth-child(16n+2),.studio-board.schach .studio-cell:nth-child(16n+4),.studio-board.schach .studio-cell:nth-child(16n+6),.studio-board.schach .studio-cell:nth-child(16n+8),.studio-board.schach .studio-cell:nth-child(16n+9),.studio-board.schach .studio-cell:nth-child(16n+11),.studio-board.schach .studio-cell:nth-child(16n+13),.studio-board.schach .studio-cell:nth-child(16n+15) { background:#dce9d4; }
+.studio-origin { background:#cadfc1; font-size:1.7rem; }
+.studio-cell[aria-pressed="true"],.studio-board.schach .studio-cell[aria-pressed="true"],.studio-cell.filled { background:#c9ef7b;border-color:#8aab57;box-shadow:inset 0 -2px #8aab57; }
+.studio-board.beats .studio-cell { aspect-ratio:1.15; }
+@media(max-width:920px) {
+  #nav { grid-template-columns:repeat(5,minmax(0,1fr)); }
+}
+@media(max-width:700px) {
+  .academy-layout { grid-template-columns:1fr; }
+  .academy-sidebar { grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr)); }
+  .stat-grid { grid-template-columns:repeat(2,1fr); }
+}
+@media(max-width:450px) {
+  .academy-stop { grid-template-columns:41px minmax(0,1fr); gap:8px; }
+  .academy-stop:not(:last-child)::before { left:19px; }
+  .academy-node { width:40px;height:40px;border-radius:12px; }
+  .practice-promo { flex-wrap:wrap; }
+  .practice-promo .button { margin-left:0; }
+  .lab-cell.player-cell span { width:28px;height:28px; }
+}

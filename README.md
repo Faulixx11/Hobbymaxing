@@ -6,11 +6,14 @@ Hobbymaxing ist eine deutschsprachige Web-Beta für Hobbys, die du im echten Leb
 
 ## Was du ausprobieren kannst
 
-- 54 Hobbys in acht Kategorien und 169 Quests inklusive vier Wochen-Challenges.
-- Lernpfade mit Einstieg, Training und Meilenstein. Fußball, Tennis und Kochen verzweigen nach der ersten Quest.
+- 54 Hobby-Einführungen in acht Kategorien, 226 Quests und 54 Wissenschecks.
+- Vier Etappen je Lernpfad: Einstieg, Training, Meilenstein und Meisterstück. Fußball, Tennis, Kochen und Scratch bieten alternative Trainingsquests. Schritte lassen sich einzeln abhaken.
+- Drei Scratch-Aufgaben im Blocklabor sowie interaktive Studios für Pixel Art, Schach und Beatmaking.
+- 39 nach Etappe und Sprache beschriftete Videos und Anleitungen für 22 Hobbys. Das eigentliche Tutorial steht jeweils in der App.
 - Wochendashboard, planbare Quests, Wochenvorhaben und persönliche Wochenserien.
-- Profil mit XP, Hobby-Leveln, Abzeichen, Projektbuch und Bestleistungen. Wiederholungen bringen keine zusätzlichen Quest-XP. Challenges vergeben einmal pro Woche XP.
-- Erfolgskarten, Quest-Links und gemeinsame Quests. In den beiden sportlichen Challenges lassen sich geteilte Werte in eine lokale Rangliste importieren. Die beiden kreativen Challenges verwenden Galerien.
+- Profil mit Tagesstreak, Wochenserie, XP, Hobby-Leveln, Abzeichen, Projektbuch und Bestleistungen. Neue App-Übungen zählen für die Tagesstreak und bringen einmalig XP. Reale Quests zählen für beide Serien.
+- Sechs Wochen-Challenges mit vier Disziplin-Ranglisten und zwei Galerien. Die Ranglisten zeigen Wochenwerte und Gesamtrekorde aus eigenen und importierten Ergebnissen.
+- Regelbasierter Lerncoach, Hilfe und ein direkter Link für Fragen oder Fehlerberichte auf GitHub.
 
 Fortschritt bleibt in der lokalen Speicherung des Browsers. Einladungs- und Ergebnislinks übertragen bewusst freigegebene Daten. Sie enthalten keinen Zugriff auf das private Projektbuch. Ranglisten beruhen auf Selbstauskunft und auf manuell importierten Links. Die App hat keine Konten, serverseitigen Freundeslisten, öffentliche Feeds, Medienuploads oder Zahlungen.
 
@@ -29,4 +32,4 @@ npm test
 
 In `catalog.mjs` stehen Hobby-ID, Kategorie, Material, Ort, Fähigkeit und die Quests mit Zeit, Ablauf, erwartetem Ergebnis und Anpassung. Der Katalog setzt für jede Zeile einen Einstieg, Training und einen Meilenstein zusammen. Zusätzliche Quests können Voraussetzungen und Alternativen definieren. Behalte veröffentlichte IDs bei und erhöhe die Quest-Version, wenn sich die Bedingungen einer Messung ändern.
 
-Die Quests sind eigene Übungen. Im Menü „Quellen & Hinweise“ stehen die recherchierten Inspirationsquellen. Die vier Fotos stammen von [Unsplash](https://unsplash.com/license).
+In `lessons.mjs` stehen Erklärungen und Wissenschecks, in `projects.mjs` die Meisterstücke und in `resources.mjs` die redaktionell ausgewählten Links. Im Menü „Quellen & Hinweise“ stehen weitere Inspirationsquellen. Die vier Fotos stammen von [Unsplash](https://unsplash.com/license).
