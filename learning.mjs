@@ -1,7 +1,7 @@
-import {byHobby,quests} from './catalog.mjs?v=05';
+import {byHobby,quests} from './catalog.mjs?v=06';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
-import {nextQuest} from './state.mjs?v=05';
+import {nextQuest} from './state.mjs?v=06';
 
 export const stages = ['Einstieg','Training','Meilenstein','Meisterstück'];
 
@@ -101,3 +101,4 @@ export function runBlocks(list,exercise) {
     frames.every(frame=>frame.pos===3&&frame.points===1&&!frame.star);
   return {frames,pass,message:pass?'Test bestanden. Dein Programm erfüllt das Ziel.':'Das Ergebnis passt noch nicht. Schau dir die Position oder den Punktestand nach jedem Ereignis an.'};
 }
+

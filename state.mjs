@@ -1,6 +1,6 @@
-import { byHobby, quests } from './catalog.mjs?v=05';
+import { byHobby, quests } from './catalog.mjs?v=06';
 
-export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, practiceDays:{}, preferences:{}, stepChecks:{}, language:'es', labDrafts:{}, studioDrafts:{}, checkpoints:{}});
+export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, practiceDays:{}, restDays:[], preferences:{}, stepChecks:{}, language:'en', labDrafts:{}, studioDrafts:{}, checkpoints:{}});
 export const key = 'hobbymaxing-v1';
 export function load(storage) {
   try { return {...initial(), ...JSON.parse(storage.getItem(key) || '{}')}; } catch { return initial(); }
@@ -60,7 +60,7 @@ export function earnPractice(state,id,xp,today=localDate()) {
   return true;
 }
 export function dailyStreak(state,today=localDate()) {
-  const days=[...new Set([...state.entries.map(entry=>entry.day),...Object.values(state.practice).map(entry=>entry.day),...Object.keys(state.practiceDays)])].filter(day=>day<=today).sort();
+  const days=[...new Set([...state.entries.map(entry=>entry.day),...Object.values(state.practice).map(entry=>entry.day),...Object.keys(state.practiceDays),...(Array.isArray(state.restDays)?state.restDays:[])])].filter(day=>validDay(day)&&day<=today).sort();
   let best=0, running=0, prior='';
   for(const day of days) {
     running=prior&&shift(prior,1)===day?running+1:1;
@@ -68,6 +68,15 @@ export function dailyStreak(state,today=localDate()) {
     prior=day;
   }
   return {best,running:prior===today||prior===shift(today,-1)?running:0,doneToday:prior===today};
+}
+export function takeRestDay(state,today=localDate()) {
+  state.restDays=Array.isArray(state.restDays)?state.restDays:[];
+  if(state.restDays.includes(today)||state.entries.some(entry=>entry.day===today)||Object.keys(state.practiceDays).includes(today)) return false;
+  const week=monday(today);
+  if(state.restDays.some(day=>validDay(day)&&monday(day)===week)) return false;
+  if(!dailyStreak(state,shift(today,-1)).running) return false;
+  state.restDays.push(today);
+  return true;
 }
 export function sameConditions(a,b) {
   return a.quest===b.quest && a.version===b.version && a.condition===b.condition;
@@ -221,3 +230,4 @@ export function rankId(data) {
   return [data.quest,data.version,data.week,data.player||data.name.trim().toLowerCase()].join('|');
 }
 export function canPlan(questId) { return Object.hasOwn(quests,questId) && Object.hasOwn(byHobby,quests[questId].hobby); }
+

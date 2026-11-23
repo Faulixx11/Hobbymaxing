@@ -1,10 +1,10 @@
-import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=05';
-import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak,validDay,validResult,changeEntry,updatePlan,inviteJoin,friendFinished,firstPrerequisite} from './state.mjs?v=05';
+import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=06';
+import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak,validDay,validResult,changeEntry,updatePlan,inviteJoin,friendFinished,firstPrerequisite,takeRestDay} from './state.mjs?v=06';
 import {lessons} from './lessons.mjs';
-import {resources} from './resources.mjs';
+import {resourcesForStage} from './resources.mjs';
 import {stages,questionOptions,helpTopics,coachReply,blocks,experiments,runBlocks} from './learning.mjs';
 import {studios,studioCell,checkStudio,playBeat} from './studios.mjs';
-import {languages,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,searchKey,matchingGear} from './play.mjs';
+import {languages,selectSpeechVoice,moods,moodQuests,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,searchKey,matchingGear} from './play.mjs';
 import {preparePhoto,putPhoto,deletePhoto,showPhotos} from './photos.mjs';
 import {roomSupported,callRoom,roomToken,knownRoomToken} from './rooms.mjs';
 
@@ -16,7 +16,7 @@ let state=load(localStorage);
 let filter={group:'all',query:'',place:'',gear:'',time:'',stage:''};
 let toastTimer;
 let coachHistory=[];
-let language=Object.hasOwn(languages,state.language)?state.language:'es';
+let language=Object.hasOwn(languages,state.language)?state.language:'en';
 let importedRank='';
 let onlineRooms=false;
 let roomTimer;
@@ -28,6 +28,10 @@ const labRuns={};
 const quizReplies={};
 let studioDrafts=structuredClone(state.studioDrafts);
 const studioReplies={};
+let hiddenTranslations=false;
+let discoveryPick=null;
+let focusTimer=readFocusTimer();
+let focusTicker;
 const featured=['fussball','fotografie','kochen','zeichnen','wandern','tennis'];
 const groupNames=Object.fromEntries(groups.map(([id,name])=>[id,name]));
 const art={wandern:'mountain',fussball:'football',fotografie:'photo',kochen:'cooking'};
@@ -61,6 +65,49 @@ function alertUser(message) {
   toast.classList.add('visible');
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>toast.classList.remove('visible'),3800);
+}
+function readFocusTimer() {
+  try {
+    const value=JSON.parse(sessionStorage.getItem('hobbymaxing-focus-timer')||'null');
+    return value&&quests[value.quest]&&Number.isInteger(value.remaining)&&value.remaining>=0&&Number.isFinite(value.deadline)?value:null;
+  } catch { return null; }
+}
+function storeFocusTimer() {
+  try {
+    if(focusTimer) sessionStorage.setItem('hobbymaxing-focus-timer',JSON.stringify(focusTimer));
+    else sessionStorage.removeItem('hobbymaxing-focus-timer');
+  } catch { /* The timer still works for this page if session storage is unavailable. */ }
+}
+function focusRemaining(id) {
+  const timer=focusTimer?.quest===id?focusTimer:null;
+  if(!timer) return (quests[id]?.minutes||0)*60;
+  return timer.deadline?Math.max(0,Math.ceil((timer.deadline-Date.now())/1000)):timer.remaining;
+}
+function focusTimerText(seconds) {
+  return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+}
+function updateFocusTimer() {
+  const timer=focusTimer;
+  if(!timer?.deadline) return;
+  const remaining=focusRemaining(timer.quest);
+  const output=main.querySelector('#focus-time');
+  const progress=main.querySelector('#focus-progress');
+  if(output) output.textContent=focusTimerText(remaining);
+  if(progress) progress.value=(quests[timer.quest].minutes*60)-remaining;
+  if(remaining===0) {
+    focusTimer={quest:timer.quest,remaining:0,deadline:0};
+    storeFocusTimer();
+    clearInterval(focusTicker);
+    alertUser('Deine Fokuszeit ist um. Atme kurz durch und notiere dein Ergebnis.');
+    if(location.hash==='#fokus/'+timer.quest) render();
+  }
+}
+function startFocusTicker(page) {
+  clearInterval(focusTicker);
+  if(page==='fokus'&&focusTimer?.deadline) {
+    updateFocusTimer();
+    if(focusTimer?.deadline) focusTicker=setInterval(updateFocusTimer,1000);
+  }
 }
 function save(change,{refresh=true}={}) {
   const latest=load(localStorage);
@@ -102,7 +149,9 @@ function weekCard() {
 }
 function streakCard() {
   const streak=dailyStreak(state);
-  return `<section class="surface streak-card"><div class="tile-icon ember">${svg('flame')}</div><div><h2>${streak.running} ${streak.running===1?'Tag':'Tage'} in Folge</h2><p>${streak.doneToday?'Heute geschafft.':streak.running?'Eine Quest, App-Übung oder Wiederholung hält deine Tagesstreak.':'Schließe eine Quest oder App-Übung ab.'}</p></div></section>`;
+  const restUsed=state.restDays?.some(day=>monday(day)===monday())||false;
+  const restAvailable=streak.running>0&&!streak.doneToday&&!restUsed;
+  return `<section class="surface streak-card"><div class="tile-icon ember">${svg('flame')}</div><div><h2>${streak.running} ${streak.running===1?'Tag':'Tage'} in Folge</h2><p>${streak.doneToday?'Heute geschafft.':state.restDays?.includes(localDate())?'Heute ist dein Erholungstag. Deine Serie bleibt erhalten.':streak.running?'Eine Quest, App-Übung oder Wiederholung hält deine Tagesstreak.':'Schließe eine Quest oder App-Übung ab.'}</p>${restUsed&&!state.restDays?.includes(localDate())?'<small>Der Erholungstag dieser Woche ist bereits genutzt.</small>':''}${restAvailable?btn('Heute pausieren','rest-day','','text-button'):''}</div></section>`;
 }
 function todayPage() {
   const active=state.active.map(id=>byHobby[id]).filter(Boolean);
@@ -146,8 +195,17 @@ function searchSuggestions(query) {
   )).slice(0,3);
   return options.length?`<p>Meintest du eines davon?</p><div class="actions">${options.map(hobby=>link(hobby.name,'pfad/'+hobby.id,'button secondary')).join('')}</div>`:'';
 }
+function moodPicker() {
+  const pick=discoveryPick;
+  const option=moods[pick?.mood];
+  const result=pick?.choice;
+  return `<section class="surface mood-picker" aria-label="Hobby nach Stimmung finden"><div><p class="eyebrow">DEINE KLEINE HOBBY-EXPEDITION</p><h2>Was würde sich gerade gut anfühlen?</h2><p>Wähle eine Stimmung und entdecke eine kurze, passende nächste Quest.</p></div>
+  <div class="mood-options">${Object.entries(moods).map(([id,mood])=>btn(`<span aria-hidden="true">${mood.icon}</span> ${mood.label}`,'pick-mood',id,'pill')).join('')}</div>
+  ${pick?`<div class="mood-result" tabindex="-1" role="status" aria-live="polite">${result?`<span class="mood-result-icon" aria-hidden="true">${result.hobby.icon}</span><div><p class="eyebrow">${option?.label||'Dein Zufallstreffer'} · ${result.quest.minutes} Min.</p><h3>${esc(result.hobby.name)}: ${esc(result.quest.title)}</h3><p>${esc(result.quest.steps[0])}</p><p class="mood-materials"><strong>Ort:</strong> ${esc(result.hobby.place)} · <strong>Material:</strong> ${esc(result.quest.materials||result.hobby.materials)}</p><div class="actions">${link('Los geht’s','quest/'+result.quest.id,'button primary')}${btn('Noch eine Idee','pick-mood',pick.mood,'button secondary')}</div></div>`:`<div><strong>Diese Stimmung hast du schon gemeistert.</strong><p>Wähle eine andere Stimmung für eine neue Idee.</p></div>`}</div>`:''}</section>`;
+}
 function discoverPage() {
   return `${titleBlock('ENTDECKEN','Finde dein nächstes Hobby.','Wähle etwas, das in deinen Tag passt. Jede Aktivität beginnt mit einer machbaren Quest.')}
+    ${moodPicker()}
     <form id="filters" class="surface filters"><label class="search-label">Suche nach Hobby, Material oder Quest <span class="search-input">${svg('search')}<input type="search" name="query" value="${esc(filter.query)}" placeholder="Zum Beispiel Fotografie oder Papier"></span></label>
     <div class="filters-grid">${filterSelect('time','Zeit',[['10','Bis 10 Min.'],['15','Bis 15 Min.'],['25','Bis 25 Min.']])}${filterSelect('place','Ort',['Zu Hause','Draußen','Drinnen'].map(x=>[x,x]))}${filterSelect('gear','Ausrüstung',['Ohne Ausrüstung','Alltagsmaterial','Mit Ausrüstung'].map(x=>[x,x]))}${filterSelect('stage','Quest-Typ',['Einstieg','Training','Meilenstein','Projekt','Erlebnis'].map(x=>[x,x]))}</div></form>
     <div class="bubble-row category-row">${[['all','Alle'],...groups].map(([id,name])=>`<button class="pill" type="button" aria-pressed="${filter.group===id}" data-action="category" data-value="${id}">${name}</button>`).join('')}</div>
@@ -203,9 +261,13 @@ function hobbyPreferences(hobby) {
   <button class="button secondary">Für „Heute“ speichern</button></form></details>`;
 }
 function resourceList(id,stage) {
-  const items=(resources[id]||[]).filter(([level])=>!stage||stage===level);
-  if(!items.length) return '';
-  return `<section class="surface utility resource-list"><h2>Videos & Anleitungen</h2><ul class="plain-list">${items.map(([level,name,source,url])=>`<li><div><small>${stages[level-1]} · ${source}</small><a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a></div></li>`).join('')}</ul></section>`;
+  const hobby=byHobby[id];
+  if(!hobby) return '';
+  const levels=stage?[stage]:[1,2,3,4];
+  const choices=levels.map(level=>({level,...resourcesForStage(hobby,level)}));
+  const items=choices.flatMap(choice=>choice.items);
+  const searches=choices.filter(choice=>choice.videoUrl).map(({level,quest,videoUrl})=>`<li><div><small>${stages[level-1]} · noch kein Video geprüft</small><a href="${videoUrl}" target="_blank" rel="noopener noreferrer">Passende YouTube-Videos suchen</a><p>Suchbegriff: ${esc(hobby.name+' · '+quest.title+' · Schritt für Schritt')}</p></div></li>`).join('');
+  return `<section class="surface utility resource-list"><h2>Videos & Anleitungen</h2>${items.length?'<p>Ausgewählte Quellen:</p>':''}<ul class="plain-list">${items.map(([level,name,source,url])=>`<li><div><small>${stages[level-1]} · ${source}</small><a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a></div></li>`).join('')}${searches}</ul><p class="resource-note">Suchtreffer stammen von YouTube und werden nicht von Hobbymaxing geprüft. Geprüfte Links sind als ausgewählte Quelle gekennzeichnet.</p></section>`;
 }
 function questPage(id, inviteCode='') {
   const quest=quests[id];
@@ -222,13 +284,38 @@ function questPage(id, inviteCode='') {
   <div class="detail-grid"><section class="surface mission">
     ${questInformation(quest,hobby)}
     ${locked?`<div class="notice">Schließe zuerst „${prerequisite?.title||'den Einstieg'}“ ab. ${prerequisite?link('Voraussetzung starten','quest/'+prerequisite.id+(planned?'/'+planned.code:''),'button primary'):link('Zum Lernpfad','pfad/'+hobby.id,'text-button')}</div>`:
-      `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:preparation?'~~'+preparation.code:''),'button primary')} ${btn('Einplanen','plan',id,'button secondary')} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
+      `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:preparation?'~~'+preparation.code:''),'button primary')} ${btn('Quest im Fokusmodus starten','focus-open',id,'button secondary')} ${btn('Einplanen','plan',id,'button secondary')} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
   </section><aside class="academy-sidebar"><section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Dein Ergebnis</h2><p>${quest.result}</p><h3>So passt du es an</h3><p>${quest.adapt}</p><h3>Danach</h3><p>${quest.stage===4?'Halte fest, was du jetzt selbstständig kannst und was du beim nächsten Versuch ändern würdest.':'Schließe die Übung ab und wähle die nächste verfügbare Quest im Lernpfad.'}</p>${btn('Quest-Link kopieren','copy-quest',quest.id,'text-button')} ${link('Lerncoach zu dieser Quest fragen','hilfe/'+hobby.id+'/'+quest.id,'text-button')}</section>${resourceList(hobby.id,quest.stage)}</aside></div>`;
+}
+function focusPage(id) {
+  const quest=quests[id];
+  if(!quest) return missing();
+  const hobby=byHobby[quest.hobby];
+  if(!unlocks(state,quest)) return `${titleBlock('QUEST-MODUS','Dieser Schritt ist noch gesperrt.','Folge zuerst der Voraussetzung im Lernpfad.')}${link('Zum Lernpfad','pfad/'+hobby.id,'button primary')}`;
+  const remaining=focusRemaining(id), total=quest.minutes*60;
+  const timer=focusTimer?.quest===id?focusTimer:null;
+  const running=Boolean(timer?.deadline&&remaining>0);
+  const timerStatus=running?'Deine Fokuszeit läuft.':remaining===0?'Zeit ist um. Wenn du fertig bist, notiere dein Ergebnis.':'Starte den Timer, wenn du bereit bist.';
+  const controls=running?`${btn('Pausieren','timer-pause',id,'button primary')} ${btn('Neu starten','timer-reset',id,'button secondary')}`:timer&&remaining>0?`${btn('Fortsetzen','timer-start',id,'button primary')} ${btn('Neu starten','timer-reset',id,'button secondary')}`:`${btn(remaining===0?'Noch eine Runde':'Timer starten','timer-start',id,'button primary')} ${btn('Zurücksetzen','timer-reset',id,'button secondary')}`;
+  const checks=state.stepChecks[quest.id+':'+quest.version]||[];
+  return `<p>${link('Zurück zur Quest','quest/'+id,'text-button')}</p>${titleBlock('QUEST-MODUS',quest.title,hobby.name+' · eine Sache nach der anderen.')}
+    <section class="focus-clock surface" aria-label="Fokustimer"><div class="focus-clock-copy"><p class="eyebrow">DEIN FOKUS-SPRINT · ${quest.minutes} MIN.</p><time id="focus-time" aria-label="Verbleibende Zeit">${focusTimerText(remaining)}</time><p id="focus-timer-status" aria-live="polite">${timerStatus}</p></div><div class="focus-clock-controls">${controls}<progress id="focus-progress" max="${total}" value="${total-remaining}">${total-remaining}</progress></div></section>
+    <section class="surface mission focus-mission"><div class="tags">${chip(hobby.icon+' '+esc(hobby.name))}${chip(esc(hobby.place))}${chip(esc(hobby.gear))}</div><h2>Was du brauchst</h2><p>${esc(quest.materials||hobby.materials)}</p>
+    ${quest.id==='sprachen-1'?`<section class="phrase-section"><h2>Sprich die Sätze nach</h2><div id="phrase-cards">${phraseCards()}</div></section>`:''}
+    ${hobby.id==='scratch'?`<div class="notice"><strong>Scratch gleich ausprobieren</strong><p>Verbinde die ersten Blöcke im interaktiven Labor, bevor du weiterübst.</p>${link('Blocklabor öffnen','labor/'+(experiments[quest.stage-1]?.id||'sammeln'),'button secondary')}</div>`:''}
+    ${Object.hasOwn(studios,hobby.id)?`<div class="notice"><strong>${esc(studios[hobby.id].title)}</strong><p>${esc(studios[hobby.id].task)}</p>${link('Übungsstudio öffnen','studio/'+hobby.id,'button secondary')}</div>`:''}
+    <h2>Deine Schritte</h2><p class="step-count" id="step-progress" aria-live="polite">${checks.length} / ${quest.steps.length} Schritte abgehakt</p>
+    <ol class="steps guided-steps focus-steps">${quest.steps.map((step,index)=>`<li><label><input type="checkbox" data-quest-step="${quest.id}" value="${index}" ${checks.includes(index)?'checked':''}><span>${esc(/[.!?]$/.test(step)?step:step+'.')}</span></label>${quest.guided?.[index]?.tip||starterGuides[quest.id]?.tips[index]?`<details><summary>Wenn du einen Hinweis brauchst</summary><p>${quest.guided?.[index]?.tip||starterGuides[quest.id]?.tips[index]}</p>${(quest.guided?.[index]?.issues||[]).map(([problem,fix])=>`<p><strong>${esc(problem)}</strong><br>${esc(fix)}</p>`).join('')}</details>`:''}</li>`).join('')}</ol>
+    ${resourceList(hobby.id,quest.stage)}<div class="notice"><strong>Erfolg heißt:</strong> ${esc(starterGuides[quest.id]?.success||quest.result)}</div><div class="actions">${btn('Ergebnis festhalten','finish',id,'button primary')}${link('Lerncoach fragen','hilfe/'+hobby.id+'/'+id,'button secondary')}</div><p class="focus-privacy">Timer und Fortschritt bleiben in diesem Browser. Der Timer läuft nur in diesem Tab.</p></section>`;
 }
 function phraseCards() {
   const selected=languages[language];
-  return `<div class="phrase-tabs actions">${Object.keys(languages).map(id=>`<button type="button" class="pill" aria-pressed="${language===id}" data-action="language" data-value="${id}">${languages[id].name}</button>`).join('')}</div>
-  <details open><summary>Fünf Sätze mit Übersetzung</summary><ul class="plain-list">${selected.pairs.map(([phrase,meaning],index)=>`<li><div><strong lang="${selected.locale}">${phrase}</strong><p>${meaning}</p></div>${btn('Anhören','speak',language+'~'+index,'button secondary')}</li>`).join('')}</ul></details>`;
+  const voices=window.speechSynthesis?.getVoices?.()||[];
+  const voice=selectSpeechVoice(voices,selected);
+  const speechStatus=!window.speechSynthesis?'Dieser Browser bietet keine Sprachausgabe.':voice?`Gerätestimme: ${voice.name} · ${voice.lang}`:voices.length?`Keine passende Stimme gemeldet. Die Spracheinstellung ${selected.locale} wird beim Anhören an den Browser übergeben.`:'Die Stimmen werden vom Browser geladen. Gewünschte Aussprache: '+selected.locale+'.';
+  return `<label class="language-choice">Übungssprache<select id="practice-language" name="language" aria-label="Übungssprache">${Object.entries(languages).map(([id,item])=>`<option value="${id}" ${id===language?'selected':''}>${item.name}</option>`).join('')}</select></label>
+  <p class="speech-status" role="status">${esc(speechStatus)}</p><div class="phrase-practice-tools">${btn(hiddenTranslations?'Übersetzungen zeigen':'Übersetzungen abdecken','toggle-translations','','button secondary')}</div>
+  <details open><summary>Fünf Sätze zum Nachsprechen</summary><ul class="plain-list">${selected.pairs.map(([phrase,meaning,pronunciation],index)=>`<li><div><strong lang="${selected.locale}">${phrase}</strong>${pronunciation?`<small class="pronunciation" lang="de">Lautschrift: ${esc(pronunciation)}</small>`:''}${hiddenTranslations?'':`<p>${meaning}</p>`}</div>${btn('Anhören','speak',language+'~'+index,'button secondary')}</li>`).join('')}</ul></details>`;
 }
 function questInformation(quest,hobby) {
   const checks=state.stepChecks[quest.id+':'+quest.version]||[];
@@ -480,12 +567,13 @@ function sharedPage(code) {
 }
 function render() {
   const [page,id,param]=(location.hash==='#main'?'heute':location.hash.slice(1)).split('/');
-  const selected=({pfad:'entdecken',quest:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',challenge:'challenges',ranglisten:'challenges',raum:'challenges',woche:'heute'})[page]||page||'heute';
+  const selected=({pfad:'entdecken',quest:'entdecken',fokus:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',challenge:'challenges',ranglisten:'challenges',raum:'challenges',woche:'heute'})[page]||page||'heute';
   nav.innerHTML=navigation.map(([route,label,icon])=>`<a href="#${route}" ${route===selected?'aria-current="page"':''}>${svg(icon)}<span>${label}</span></a>`).join('');
   top.innerHTML=`<div class="top-left"><span class="mobile-mark mark">✳</span><div><p>${new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</p><strong>${state.name?'Hi, '+esc(state.name):'Willkommen bei Hobbymaxing'}</strong></div></div><div class="top-stats"><a class="xp-chip" href="#profil">${svg('bolt')} <strong>${totalXp(state)} XP</strong></a><a class="avatar" href="#profil" aria-label="Profil">${state.name?esc(Array.from(state.name)[0].toLocaleUpperCase('de')):svg('user')}</a></div>`;
-  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,wissen:quizPage,labor:labPage,studio:studioPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
+  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,fokus:focusPage,wissen:quizPage,labor:labPage,studio:studioPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
   main.innerHTML=(Object.hasOwn(views,page||'heute')?views[page||'heute']:missing)(id,param);
   if(page==='profil') showPhotos(main);
+  startFocusTicker(page);
 }
 document.querySelector('.skip').addEventListener('click',event=>{
   event.preventDefault();
@@ -576,6 +664,35 @@ document.addEventListener('click',async event=>{
   const {action:kind,value}=action.dataset;
   switch(kind) {
     case 'close': modal.close(); break;
+    case 'pick-mood': {
+      const options=moodQuests(state,value);
+      const available=options.filter(item=>item.quest.id!==discoveryPick?.choice?.quest.id);
+      const pool=available.length?available:options;
+      discoveryPick={mood:value,choice:pool.length?pool[Math.floor(Math.random()*pool.length)]:null};
+      render();
+      main.querySelector('.mood-result')?.focus();
+      break;
+    }
+    case 'focus-open':
+      if(quests[value]&&unlocks(state,quests[value])) location.hash='fokus/'+value;
+      break;
+    case 'timer-start':
+    case 'timer-pause':
+    case 'timer-reset': {
+      const quest=quests[value];
+      if(!quest||!unlocks(state,quest)) break;
+      const remaining=focusRemaining(value);
+      if(kind==='timer-pause') focusTimer={quest:value,remaining,deadline:0};
+      else if(kind==='timer-reset') focusTimer={quest:value,remaining:quest.minutes*60,deadline:0};
+      else {
+        const seconds=remaining||quest.minutes*60;
+        focusTimer={quest:value,remaining:seconds,deadline:Date.now()+seconds*1000};
+      }
+      storeFocusTimer();
+      render();
+      startFocusTicker('fokus');
+      break;
+    }
     case 'create-room':
       action.disabled=true;
       try {
@@ -590,15 +707,12 @@ document.addEventListener('click',async event=>{
       render();
       refreshRoom(value);
       break;
-    case 'language':
-      if(Object.hasOwn(languages,value)) {
-        if(!save(latest=>{latest.language=value;},{refresh:false})) break;
-        language=value;
-        const region=main.querySelector('#phrase-cards');
-        region.innerHTML=phraseCards();
-        region.querySelector('[aria-pressed="true"]').focus();
-      }
+    case 'toggle-translations': {
+      hiddenTranslations=!hiddenTranslations;
+      const region=main.querySelector('#phrase-cards');
+      if(region) {region.innerHTML=phraseCards();region.querySelector('[data-action="toggle-translations"]')?.focus();}
       break;
+    }
     case 'checkpoint':
       if(quests[value]?.elapsedDays&&save(latest=>{
         if(!unlocks(latest,quests[value])) return false;
@@ -625,12 +739,14 @@ document.addEventListener('click',async event=>{
       const item=languages[id];
       const phrase=item?.pairs[Number(index)]?.[0];
       if(!phrase||!window.speechSynthesis||!window.SpeechSynthesisUtterance) {alertUser('Dein Browser unterstützt hier keine Sprachausgabe.'); break;}
-      const voice=speechSynthesis.getVoices().find(candidate=>candidate.localService&&candidate.lang.toLowerCase().startsWith(id));
+      const voices=speechSynthesis.getVoices();
+      const voice=selectSpeechVoice(voices,item);
       const utterance=new SpeechSynthesisUtterance(phrase);
       utterance.lang=item.locale;
       if(voice) utterance.voice=voice;
       utterance.rate=.85;
-      utterance.onerror=()=>alertUser('Für diese Sprache war keine Sprachausgabe verfügbar.');
+      utterance.onstart=()=>alertUser('Aussprache: '+(voice?voice.lang:item.locale));
+      utterance.onerror=error=>{if(!['canceled','interrupted'].includes(error.error)) alertUser('Keine passende Stimme verfügbar. Prüfe, ob '+item.name+' in den Geräteeinstellungen installiert ist.');};
       speechSynthesis.cancel();
       speechSynthesis.speak(utterance);
       break;
@@ -730,6 +846,10 @@ document.addEventListener('click',async event=>{
       break;
     case 'active':
       save(latest=>{latest.active=latest.active.includes(value)?latest.active.filter(id=>id!==value):[...latest.active,value];});
+      break;
+    case 'rest-day':
+      if(save(latest=>takeRestDay(latest))) alertUser('Erholungstag genutzt. Deine Tagesstreak bleibt erhalten.');
+      else alertUser('Ein Erholungstag ist nur einmal pro Woche während einer aktiven Serie möglich.');
       break;
     case 'finish': finishDialog(value); break;
     case 'plan':
@@ -951,6 +1071,17 @@ document.addEventListener('input',event=>{
 });
 document.addEventListener('change',event=>{
   const control=event.target;
+  if(control.id==='practice-language') {
+    const value=control.value;
+    if(!Object.hasOwn(languages,value)||value===language) return;
+    if(save(latest=>{latest.language=value;},{refresh:false})) {
+      language=value;
+      hiddenTranslations=false;
+      const region=main.querySelector('#phrase-cards');
+      if(region) {region.innerHTML=phraseCards();region.querySelector('#practice-language')?.focus();}
+    }
+    return;
+  }
   const quest=quests[control.dataset?.questStep];
   if(!quest) return;
   const index=Number(control.value);
@@ -981,3 +1112,4 @@ if(roomSupported()) callRoom('/health').then(result=>{
   onlineRooms=result.available===true;
   if(location.hash.startsWith('#challenge/')) render();
 }).catch(()=>{});
+
