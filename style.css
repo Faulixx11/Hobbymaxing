@@ -221,6 +221,16 @@ dialog::backdrop { background: #1c261ab0; }
   .avatar { display: none; }
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition: none !important; } }
+
+@media print {
+  body { background:#fff !important; color:#111 !important; }
+  .rail, #top, .foot, .skip, .actions, button, .intro-mobile-practice, #toast { display:none !important; }
+  .shell, .workspace, #main, .academy-layout, .academy-sidebar { display:block !important; width:100% !important; max-width:none !important; margin:0 !important; padding:0 !important; }
+  .surface, .path-body, .academy-stop { box-shadow:none !important; break-inside:avoid; border-color:#bbb !important; }
+  .section, .academy-path { margin:12px 0 !important; }
+  a { color:#111 !important; text-decoration:none !important; }
+  .academy-stop.locked { opacity:.8; }
+}
 .academy-layout { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(245px,1fr); gap:20px; align-items:start; }
 .academy-sidebar { display:grid; gap:14px; }
 .hobby-intro p { max-width:70ch; }

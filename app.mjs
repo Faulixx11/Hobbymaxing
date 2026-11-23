@@ -223,7 +223,7 @@ function pathPage(id) {
   <div class="academy-layout section">
     <div>
       <section class="surface mission hobby-intro"><h2>Worum geht’s bei diesem Hobby?</h2><p>${lesson.intro}</p><h3>So gelingt der Einstieg</h3><p>${lesson.technique}</p><div class="tags">${chip(hobby.place)}${chip(esc(hobby.gear))}${chip('Erste Quest: '+hobby.quests[0].minutes+' Min.')}</div>
-      <div class="actions intro-mobile-practice">${link('Wissenscheck','wissen/'+id,'button secondary')}${id==='scratch'?link('Blocklabor','labor','button secondary'):Object.hasOwn(studios,id)?link('Übungsstudio','studio/'+id,'button secondary'):''}</div></section>
+      <div class="actions intro-mobile-practice">${link('Wissenscheck','wissen/'+id,'button secondary')}${id==='scratch'?link('Blocklabor','labor','button secondary'):Object.hasOwn(studios,id)?link('Übungsstudio','studio/'+id,'button secondary'):''}${btn('Lernpfad drucken','print-path',id,'button secondary')}</div></section>
       <section class="section" aria-label="Lernpfad"><div class="section-title"><div><h2>Dein Lernpfad</h2><p>${hits} von ${hobby.quests.length} Quests erledigt</p></div></div>
       <ol class="academy-path">${stages.map((label,index)=>{
         const station=hobby.quests.filter(quest=>quest.stage===index+1);
@@ -846,6 +846,9 @@ document.addEventListener('click',async event=>{
       break;
     case 'active':
       save(latest=>{latest.active=latest.active.includes(value)?latest.active.filter(id=>id!==value):[...latest.active,value];});
+      break;
+    case 'print-path':
+      window.print();
       break;
     case 'rest-day':
       if(save(latest=>takeRestDay(latest))) alertUser('Erholungstag genutzt. Deine Tagesstreak bleibt erhalten.');
