@@ -1,0 +1,39 @@
+.game-map-layout { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(240px,1fr); gap:18px; align-items:start; }
+.game-map { position:relative; isolation:isolate; min-height:440px; overflow:hidden; border:1px solid #537461; border-radius:22px; background:
+  radial-gradient(ellipse at 87% 18%,#596076 0 9%, transparent 30%),
+  radial-gradient(ellipse at 19% 34%,#174246 0 11%, transparent 25%),
+  radial-gradient(ellipse at 34% 82%,#395337 0 14%, transparent 46%),
+  repeating-radial-gradient(ellipse at 79% 10%,#d2f2d818 0 1px,transparent 2px 24px),
+  #233e35; }
+.game-map::before { content:""; position:absolute; inset:0; z-index:-1; opacity:.36; background:repeating-linear-gradient(115deg,transparent 0 16px,#91b78829 17px,transparent 22px 37px); }
+.map-landmark { position:absolute; pointer-events:none; color:#89b39c; font-size:clamp(1.5rem,5vw,4rem); letter-spacing:-.17em; opacity:.55; }
+.map-landmark.lake { top:34%; left:10%; color:#78ccc5; }
+.map-landmark.trees { top:49%; left:11%; color:#add192; }
+.map-landmark.ridge { top:5%; left:40%; color:#a1b5d3; }
+.map-landmark.hills { top:63%; right:10%; }
+.map-track { position:absolute; inset:0; pointer-events:none; clip-path:polygon(
+  calc(var(--x)*1%) calc(var(--y)*1% - 3px),
+  calc((var(--x) + var(--dx))*1%) calc((var(--y) + var(--dy))*1% - 3px),
+  calc((var(--x) + var(--dx))*1%) calc((var(--y) + var(--dy))*1% + 3px),
+  calc(var(--x)*1%) calc(var(--y)*1% + 3px));
+  background:#b1beb0; opacity:.52;
+}
+.map-track.walked { background:#e4d07d; opacity:.95; }
+.map-node { position:absolute; top:calc(var(--y)*1%); left:calc(var(--x)*1%); transform:translate(-50%,-50%); display:grid; justify-items:center; border-radius:100%; color:#fff; text-decoration:none; }
+.map-pin { display:grid; place-items:center; width:47px; height:47px; border:2px solid #c7dfb4; border-radius:50%; background:#182d24; font-size:1.17rem; box-shadow:0 4px 0 #14231c; }
+.map-node.locked .map-pin { border-color:#84968a; background:#2d3e38; }
+.map-node[aria-current] .map-pin { outline:3px solid #f5dc82; outline-offset:2px; }
+.map-node:focus-visible { outline:3px solid white; outline-offset:6px; }
+.map-label { position:absolute; top:calc(100% + 7px); white-space:nowrap; font-size:.75rem; font-weight:700; background:#142822; padding:.22em .48em; border-radius:6px; }
+.map-player { position:absolute; bottom:calc(100% + 6px); font-size:2rem; filter:drop-shadow(0 3px 2px #13251b); }
+.map-dossier h3 { margin-block:1rem .25rem; }
+.map-summary { border-top:1px solid var(--line); margin-top:18px; padding-top:14px; }
+.map-summary progress { margin-block:8px; }
+@media(max-width:760px) {
+  .game-map-layout { grid-template-columns:minmax(0,1fr); }
+  .game-map { min-height:365px; }
+}
+@media(max-width:920px) {
+  #nav { grid-template-columns:repeat(6,minmax(0,1fr)); }
+}
+html[data-reading="text"] .map-landmark { display:none; }
