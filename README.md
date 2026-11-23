@@ -9,15 +9,21 @@ Hobbymaxing ist eine deutschsprachige Web-Beta für Hobbys, die du im echten Leb
 - 54 Hobby-Einführungen in acht Kategorien, 234 Quests und 54 Wissenschecks.
 - Vier Etappen je Lernpfad: Einstieg, Training, Meilenstein und Meisterstück. Scratch, Sprachenlernen, Kochen und Tennis zeigen eigene Fähigkeiten und weitere Trainings- und Projektaufgaben. Schritte lassen sich einzeln abhaken.
 - Drei Scratch-Aufgaben im Blocklabor sowie interaktive Studios für Pixel Art, Schach und Beatmaking.
-- 39 nach Etappe und Sprache beschriftete Videos und Anleitungen für 22 Hobbys. Das eigentliche Tutorial steht jeweils in der App.
+- 39 ausgewählte Videos und Anleitungen für 22 Hobbys. Fehlende Videoempfehlungen haben jetzt je Etappe eine passende YouTube-Suche, die sichtbar als ungeprüft markiert ist. Das eigentliche Tutorial steht jeweils in der App.
 - Wochendashboard, planbare Quests, Wochenvorhaben und persönliche Wochenserien.
 - Profil mit Tagesstreak, Wochenserie, XP, Hobby-Leveln, Abzeichen, Projektbuch und Bestleistungen. Neue App-Übungen zählen für die Tagesstreak und bringen einmalig XP. Reale Quests zählen für beide Serien.
+- Fairer Tagesstreak: Während einer laufenden Serie kann einmal pro Woche ein freiwilliger Erholungstag genommen werden. Er erhält die Serie, bringt aber keine XP und ersetzt keine echte Wochen-Praxisquest.
 - Sechs Wochen-Challenges mit vier Disziplin-Ranglisten und zwei Galerien. Die Ranglisten zeigen Wochenwerte und Gesamtrekorde aus eigenen und importierten Ergebnissen.
 - Regelbasierter Lerncoach, Hilfe und ein direkter Link für Fragen oder Fehlerberichte auf GitHub.
 - Direkt spielbare Quest-Filter, persönliche Hobby-Einstellungen, wiederholbare Streak-Übungen und eine wechselnde Wochenempfehlung.
-- Satzkarten in drei Sprachen mit browserabhängiger Sprachausgabe, konkretes Einstiegsrezept, Schritt-Tipps und eine Sicherungsdatei für den eigenen Fortschritt.
+- Satzkarten in 14 Sprachen (Englisch, Spanisch, Französisch, Italienisch, Portugiesisch, Niederländisch, Polnisch, Türkisch, Russisch, Japanisch, Koreanisch, Mandarin, Hindi und Arabisch). Die Aussprache nutzt die Sprachstimme des Browsers/Geräts und fordert die passende Sprachregion an; installierte Stimmen und Klangqualität unterscheiden sich je Gerät. Nicht-lateinische Schriftsysteme zeigen zusätzlich eine Lautschrift. Übersetzungen lassen sich für den Selbsttest abdecken.
+- Fokusmodus für jede freigeschaltete Quest: große, abhakbare Arbeitsschritte, gespeicherter Fortschritt sowie ein pausierbarer, neu startbarer Countdown. Der Timer speichert nur im aktuellen Browser-Tab.
+- Hobby-Expedition: Wähle eine Stimmung und lass dir eine passende, freigeschaltete Quest unter 25 Minuten vorschlagen. Bereits erledigte Ideen werden bei einem weiteren Vorschlag übersprungen, wenn Alternativen offen sind.
+- Konkretes Einstiegsrezept, Schritt-Tipps und eine Sicherungsdatei für den eigenen Fortschritt.
 
-Fortschritt bleibt in der lokalen Speicherung des Browsers. Die Profilsicherung enthält Quests, Notizen, Termine, Wochenvorhaben, Einladungen, importierte Ranglistenwerte, Einstellungen und Entwürfe. Fotos bleiben in einer browserlokalen Datenbank und werden weder geteilt noch exportiert.
+Fortschritt bleibt in der lokalen Speicherung des Browsers. Die Profilsicherung enthält Quests, Notizen, Termine, Wochenvorhaben, Einladungen, importierte Ranglistenwerte, Einstellungen und Entwürfe. Fotos bleiben in einer browserlokalen Datenbank und werden weder geteilt noch exportiert. Es gibt weiterhin kein Online-Konto und keine Synchronisierung zwischen Geräten.
+
+Eine priorisierte Sammlung weiterer Produktideen mit Nutzerwert, Aufwand und Risiken steht in [BETA-IDEEN.md](BETA-IDEEN.md).
 
 Einladungs- und Ergebnislinks übertragen bewusst freigegebene Daten. Sie enthalten keinen Zugriff auf das private Projektbuch. Die statische Beta auf GitHub Pages verwendet manuell geteilte Ergebnisse. Die Serverversion unterstützt zusätzlich gemeinsame Räume mit Spitznamen und selbst eingetragenen Ergebnissen.
 
@@ -43,3 +49,4 @@ npm test
 In `catalog.mjs` stehen Hobby-ID, Kategorie, Material, Ort, Fähigkeit und die Quests mit Zeit, Ablauf, erwartetem Ergebnis und Anpassung. Der Katalog setzt für jede Zeile einen Einstieg, Training und einen Meilenstein zusammen. Zusätzliche Quests können Voraussetzungen und Alternativen definieren. Behalte veröffentlichte IDs bei und erhöhe die Quest-Version, wenn sich die Bedingungen einer Messung ändern.
 
 In `lessons.mjs` stehen Erklärungen und Wissenschecks, in `projects.mjs` die Meisterstücke und in `resources.mjs` die redaktionell ausgewählten Links. Im Menü „Quellen & Hinweise“ stehen weitere Inspirationsquellen. Die vier Fotos stammen von [Unsplash](https://unsplash.com/license).
+

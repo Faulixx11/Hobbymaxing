@@ -41,3 +41,16 @@ export const resources = {
   '3d':[[1,'Erste Schritte in Blender','Blender Studio · Englisch','https://studio.blender.org/training/blender-fundamentals-45-lts/chapter/blender_4-5_lts_first-steps/'],[2,'3D-Modellieren vertiefen','Blender Education · Englisch','https://education.blender.org/blender_tutorials/modeling/']],
   beats:[[1,'Spielerischer Einstieg ins Beatmaking','Ableton · Englisch','https://learningmusic.ableton.com/make-beats/make-beats']]
 };
+
+export function videoSearchUrl(hobbyName,questTitle) {
+  const query=[hobbyName,questTitle,'Tutorial Schritt für Schritt'].filter(Boolean).join(' ');
+  return 'https://www.youtube.com/results?search_query='+encodeURIComponent(query);
+}
+
+export function resourcesForStage(hobby,stage) {
+  const items=(resources[hobby.id]||[]).filter(([level])=>level===stage);
+  const hasVideo=items.some(([,name,source,url])=>source.includes('YouTube')||url.includes('youtube.com')||name.toLowerCase().startsWith('video'));
+  const quest=hobby.quests.find(item=>item.stage===stage);
+  return {items,quest,videoUrl:!hasVideo&&quest?videoSearchUrl(hobby.name,quest.title):''};
+}
+

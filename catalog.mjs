@@ -112,7 +112,7 @@ for (const [index,steps] of scratchLessons.entries()) {
 
 const firstLanguage=hobbies.find(hobby=>hobby.id==='sprachen').quests[0];
 firstLanguage.materials='Die Satzkarten in dieser Quest und optional Kopfhörer';
-firstLanguage.steps=['Wähle Spanisch, Französisch oder Englisch. Lies die erste Satzkarte mit ihrer Übersetzung.','Höre und sprich die fünf Sätze nach. Ersetze „Ana“ beim Vorstellen durch deinen Namen.','Klappe die Satzkarten zu. Sag die Sätze ohne Vorlage und öffne die Karten danach zum Vergleichen.'];
+firstLanguage.steps=['Wähle deine Übungssprache und lies die erste Satzkarte mit ihrer Übersetzung.','Höre und sprich die fünf Sätze nach. Ersetze den Beispielnamen beim Vorstellen durch deinen eigenen Namen.','Klappe die Satzkarten zu. Sag die Sätze ohne Vorlage und öffne die Karten danach zum Vergleichen.'];
 firstLanguage.version=2;
 const firstCooking=hobbies.find(hobby=>hobby.id==='kochen').quests[0];
 firstCooking.materials='100 g Nudeln, 150 g passierte Tomaten, 1 Liter Wasser, Salz, Topf, kleine Pfanne oder zweiter Topf und ein Sieb';
@@ -181,3 +181,4 @@ export const journeys = [
   {id:'freunde',title:'Ein Sonntag mit Freunden',icon:'🍝',text:'Verabredet euch zum Kochen und probiert die Pass-Challenge.',quests:['kochen-1','challenge-pass']},
   {id:'draussen',title:'Vor die Tür',icon:'🌿',text:'Geh eine neue Runde und halte einen Fund im Naturjournal fest.',quests:['wandern-1','naturjournal-1']}
 ];
+

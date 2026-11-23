@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hobbies,quests,byHobby,challenges} from './catalog.mjs';
-import {initial,load,record,totalXp,unlocks,level,streaks,weekGoal,validShare,encode,decode,leaderboard,rankId,earnPractice,dailyStreak,changeEntry,inviteJoin,friendFinished,firstPrerequisite,updatePlan} from './state.mjs';
+import {initial,load,record,totalXp,unlocks,level,streaks,weekGoal,validShare,encode,decode,leaderboard,rankId,earnPractice,dailyStreak,changeEntry,inviteJoin,friendFinished,firstPrerequisite,updatePlan,takeRestDay} from './state.mjs';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
 import {questionOptions,coachReply,experiments,runBlocks} from './learning.mjs';
@@ -96,6 +96,25 @@ test('old browser progress still loads, and practice counts toward daily but not
   assert.deepEqual(dailyStreak(state,'2026-11-17'),{running:2,best:2,doneToday:true});
   assert.deepEqual(dailyStreak(state,'2026-11-19'),{running:0,best:2,doneToday:false});
   assert.deepEqual(streaks(state,'2026-11-17'),{running:0,best:0});
+});
+
+test('one voluntary weekly rest day preserves an active daily streak without earning activity XP',()=>{
+  const state=initial();
+  earnPractice(state,'quiz-scratch',20,'2026-11-22');
+  assert.equal(takeRestDay(state,'2026-11-23'),true);
+  assert.deepEqual(dailyStreak(state,'2026-11-23'),{running:2,best:2,doneToday:true});
+  assert.equal(takeRestDay(state,'2026-11-24'),false);
+  assert.equal(Object.keys(state.practice).length,1);
+  assert.equal(takeRestDay(initial(),'2026-11-23'),false);
+});
+
+test('profile backups preserve weekly rest days while older backups still load',()=>{
+  const state=initial();
+  state.restDays=['2026-11-23'];
+  const restored=parseBackup(profileBackup(state));
+  assert.deepEqual(restored.restDays,['2026-11-23']);
+  const older=parseBackup(JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name:'Alt',active:[],entries:[]}}));
+  assert.deepEqual(older.restDays,[]);
 });
 
 test('the block lab reports failed sequences and verifies all three goals',()=>{
@@ -207,3 +226,4 @@ test('German search, equipment and multiday metadata work on the concrete quest'
   assert.equal(quests['garten-2'].elapsedDays,3);
   assert.match(quests['kochen-1'].guided[1].tip,/Sauce/);
 });
+

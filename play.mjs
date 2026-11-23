@@ -1,13 +1,50 @@
-import {byHobby,quests,challenges,hobbies,journeys} from './catalog.mjs?v=05';
-import {monday,completed,unlocks,localDate,initial,validDay,validShare,rankId,rebuildEntries} from './state.mjs?v=05';
-import {experiments} from './learning.mjs?v=05';
+import {byHobby,quests,challenges,hobbies,journeys} from './catalog.mjs?v=06';
+import {monday,completed,unlocks,nextQuest,localDate,initial,validDay,validShare,rankId,rebuildEntries} from './state.mjs?v=06';
+import {experiments} from './learning.mjs?v=06';
 import {studios} from './studios.mjs';
 
 export const languages = {
+  en:{name:'Englisch',locale:'en-GB',pairs:[['Hi!','Hallo!'],['Good morning!','Guten Morgen!'],['What’s your name?','Wie heißt du?'],['My name is Ana.','Ich heiße Ana.'],['Nice to meet you.','Freut mich.']]},
   es:{name:'Spanisch',locale:'es-ES',pairs:[['Hola.','Hallo.'],['Buenos días.','Guten Morgen.'],['¿Cómo te llamas?','Wie heißt du?'],['Me llamo Ana.','Ich heiße Ana.'],['Mucho gusto.','Freut mich.']]},
   fr:{name:'Französisch',locale:'fr-FR',pairs:[['Salut !','Hallo!'],['Bonjour !','Guten Tag!'],['Comment tu t’appelles ?','Wie heißt du?'],['Je m’appelle Ana.','Ich heiße Ana.'],['Enchanté !','Freut mich!']]},
-  en:{name:'Englisch',locale:'en-GB',pairs:[['Hi!','Hallo!'],['Good morning!','Guten Morgen!'],['What’s your name?','Wie heißt du?'],['My name is Ana.','Ich heiße Ana.'],['Nice to meet you.','Freut mich.']]}
+  it:{name:'Italienisch',locale:'it-IT',pairs:[['Ciao!','Hallo!'],['Buongiorno!','Guten Morgen!'],['Come ti chiami?','Wie heißt du?'],['Mi chiamo Ana.','Ich heiße Ana.'],['Piacere di conoscerti.','Freut mich.']]},
+  pt:{name:'Portugiesisch (Brasilien)',locale:'pt-BR',pairs:[['Olá!','Hallo!'],['Bom dia!','Guten Morgen!'],['Como você se chama?','Wie heißt du?'],['Meu nome é Ana.','Ich heiße Ana.'],['Prazer em conhecer você.','Freut mich.']]},
+  nl:{name:'Niederländisch',locale:'nl-NL',pairs:[['Hallo!','Hallo!'],['Goedemorgen!','Guten Morgen!'],['Hoe heet je?','Wie heißt du?'],['Ik heet Ana.','Ich heiße Ana.'],['Leuk je te ontmoeten.','Freut mich.']]},
+  pl:{name:'Polnisch',locale:'pl-PL',pairs:[['Cześć!','Hallo!'],['Dzień dobry!','Guten Tag!'],['Jak masz na imię?','Wie heißt du?'],['Mam na imię Ana.','Ich heiße Ana.'],['Miło cię poznać.','Freut mich.']]},
+  tr:{name:'Türkisch',locale:'tr-TR',pairs:[['Merhaba!','Hallo!'],['Günaydın!','Guten Morgen!'],['Adınız ne?','Wie heißen Sie?'],['Benim adım Ana.','Ich heiße Ana.'],['Tanıştığımıza memnun oldum.','Freut mich.']]},
+  ru:{name:'Russisch',locale:'ru-RU',pairs:[['Здравствуйте!','Guten Tag!'],['Доброе утро!','Guten Morgen!'],['Как вас зовут?','Wie heißen Sie?'],['Меня зовут Анна.','Ich heiße Anna.'],['Приятно познакомиться.','Freut mich.']]},
+  ja:{name:'Japanisch',locale:'ja-JP',pairs:[['こんにちは。','Hallo!','Konnichiwa'],['おはようございます。','Guten Morgen!','Ohayō gozaimasu'],['お名前は何ですか？','Wie heißen Sie?','Onamae wa nan desu ka'],['アンナです。','Ich heiße Anna.','Anna desu'],['はじめまして。','Freut mich.','Hajimemashite']]},
+  ko:{name:'Koreanisch',locale:'ko-KR',pairs:[['안녕하세요.','Hallo!','Annyeonghaseyo'],['좋은 아침이에요.','Guten Morgen!','Joeun achim-ieyo'],['성함이 어떻게 되세요?','Wie heißen Sie?','Seonghami eotteoke doeseyo'],['저는 안나예요.','Ich heiße Anna.','Jeoneun Anna-yeyo'],['만나서 반가워요.','Freut mich.','Mannaseo bangawoyo']]},
+  zh:{name:'Chinesisch (Mandarin)',locale:'zh-CN',pairs:[['你好！','Hallo!','Nǐ hǎo'],['早上好！','Guten Morgen!','Zǎoshang hǎo'],['你叫什么名字？','Wie heißt du?','Nǐ jiào shénme míngzi'],['我叫安娜。','Ich heiße Anna.','Wǒ jiào Ānnà'],['很高兴认识你。','Freut mich.','Hěn gāoxìng rènshi nǐ']]},
+  hi:{name:'Hindi',locale:'hi-IN',pairs:[['नमस्ते!','Hallo!','Namaste'],['सुप्रभात!','Guten Morgen!','Suprabhāt'],['आपका नाम क्या है?','Wie heißen Sie?','Āpkā nām kyā hai'],['मेरा नाम आना है।','Ich heiße Anna.','Merā nām Ānā hai'],['आपसे मिलकर खुशी हुई।','Freut mich.','Āpse milkar khuśī huī']]},
+  ar:{name:'Arabisch',locale:'ar-SA',pairs:[['مرحبًا!','Hallo!','Marḥaban'],['صباح الخير!','Guten Morgen!','Ṣabāḥ al-khayr'],['ما اسمك؟','Wie heißen Sie?','Mā ismuk'],['اسمي آنا.','Ich heiße Anna.','Ismī Ānā'],['سُررت بلقائك.','Freut mich.','Surirtu biliqā’ik']]}
 };
+
+export function selectSpeechVoice(voices,item) {
+  const base=item.locale.split('-')[0].toLowerCase();
+  const locale=item.locale.toLowerCase();
+  return voices.filter(voice=>String(voice.lang||'').replace('_','-').toLowerCase().split('-')[0]===base)
+    .sort((a,b)=>Number(String(b.lang||'').replace('_','-').toLowerCase()===locale)-Number(String(a.lang||'').replace('_','-').toLowerCase()===locale))[0]||null;
+}
+
+export const moods = {
+  ruhig:{label:'Ruhig & fokussiert',icon:'☁',groups:['natur','kunst','hand','spiel','technik']},
+  kreativ:{label:'Kreativ werden',icon:'✦',groups:['kunst','musik','kueche','hand']},
+  bewegung:{label:'In Bewegung kommen',icon:'↗',groups:['sport','natur']},
+  gemeinsam:{label:'Mit anderen',icon:'♟',groups:['spiel','musik','sport','kueche']}
+};
+
+export function moodQuests(state,moodId) {
+  const mood=moods[moodId];
+  if(!mood) return [];
+  return hobbies.flatMap(hobby=>{
+    if(!mood.groups.includes(hobby.group)) return [];
+    const quest=nextQuest(state,hobby);
+    const gear=quest?.gear||hobby.gear;
+    const gearKnown=state.preferences[hobby.id]?.gear==='any';
+    return quest&&quest.minutes<=25&&matchingGear(state,hobby,quest)&&(gear!=='Mit Ausrüstung'||gearKnown)?[{hobby,quest}]:[];
+  });
+}
 
 export const starterGuides = {
   'sprachen-1':{success:'Du kannst die fünf Sätze ohne Vorlage sprechen und mindestens drei einer passenden Situation zuordnen.',tips:['Wähle oben eine der drei Sprachen. Beginne mit der Begrüßung und ersetze „Ana“ durch deinen Namen.','Höre einen Satz zweimal. Sprich ihn beim dritten Mal mit und dann allein nach. Zerlege längere Fragen in zwei Teile.','Klappe die Vorlage zu und sprich Begrüßung, Frage und Vorstellung auswendig. Öffne danach zum Vergleich wieder die Karten.']},
@@ -69,8 +106,8 @@ const nonfuture=value=>validDay(value)&&value>='2020-01-01'&&value<=localDate();
 const safeId=value=>str(value,50)&&/^[a-f0-9-]{8,50}$/i.test(value);
 
 export function profileBackup(state) {
-  const {name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}=state;
-  return JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}},null,2);
+  const {name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}=state;
+  return JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}},null,2);
 }
 export function parseBackup(text) {
   if(text.length>1000000) return null;
@@ -91,6 +128,7 @@ export function parseBackup(text) {
       if(validId&&obj(value)&&nonfuture(value.day)&&value.xp===(id.startsWith('quiz-')?20:25)) restored.practice[id]={day:value.day,xp:value.xp};
     }
     for(const day of Object.keys(obj(profile.practiceDays)?profile.practiceDays:{})) if(nonfuture(day)) restored.practiceDays[day]=true;
+    for(const day of Array.isArray(profile.restDays)?profile.restDays:[]) if(nonfuture(day)&&!restored.restDays.some(existing=>monday(existing)===monday(day))) restored.restDays.push(day);
     for(const [id,pref] of Object.entries(obj(profile.preferences)?profile.preferences:{})) {
       if(!Object.hasOwn(byHobby,id)||!obj(pref)) continue;
       restored.preferences[id]=Object.fromEntries(Object.entries(preferences).map(([field,choices])=>[field,choices.some(([value])=>value===pref[field])?pref[field]:choices[0][0]]));
@@ -171,3 +209,4 @@ export function mergeBackup(state,profile) {
   for(const [key,checks] of Object.entries(profile.stepChecks)) state.stepChecks[key]=[...new Set([...(state.stepChecks[key]||[]),...checks])];
   return counts;
 }
+
