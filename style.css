@@ -13,6 +13,18 @@
   color: var(--ink);
   background: var(--page);
 }
+:root[data-theme="dark"] { color-scheme:dark; --page:#151a17; --ink:#eff3eb; --muted:#b2bdb0; --line:#364139; --white:#202823; --lilac:#393348; --lime:#b7db65; --green:#b7db65; }
+:root[data-theme="dark"] .rail,:root[data-theme="dark"] .xp-chip,:root[data-theme="dark"] .button,:root[data-theme="dark"] .pill,:root[data-theme="dark"] input,:root[data-theme="dark"] select,:root[data-theme="dark"] textarea,:root[data-theme="dark"] dialog { background-color:#202823; color:var(--ink); border-color:var(--line); }
+:root[data-theme="dark"] #nav a { color:#c4cec1; }
+:root[data-theme="dark"] #nav a:hover,:root[data-theme="dark"] #nav [aria-current] { background:#303d32; color:#e5f2d7; }
+:root[data-theme="dark"] .locked .path-body,:root[data-theme="dark"] .chip,:root[data-theme="dark"] .notice,:root[data-theme="dark"] .empty { background:#29332c; color:var(--ink); }
+:root[data-theme="dark"] .filters label,:root[data-theme="dark"] form label,:root[data-theme="dark"] .text-button,:root[data-theme="dark"] .brand small,:root[data-theme="dark"] .foot { color:#c3cec0; }
+:root[data-theme="dark"] .challenge-teaser { background:#2c2938; border-color:#494359; }
+:root[data-theme="dark"] .hobby-card,:root[data-theme="dark"] .stat,:root[data-theme="dark"] .week,:root[data-theme="dark"] .utility,:root[data-theme="dark"] .mission,:root[data-theme="dark"] .streak-card,:root[data-theme="dark"] .list-row,:root[data-theme="dark"] .path-body,:root[data-theme="dark"] .filters { background:#202823; color:var(--ink); border-color:var(--line); }
+:root[data-theme="dark"] .card-content,:root[data-theme="dark"] .card-meta,:root[data-theme="dark"] .path-banner { color:var(--ink); }
+:root[data-theme="dark"] .day span,:root[data-theme="dark"] .path-node { background:#303b33; color:var(--ink); }
+:root[data-theme="dark"] .day .done,:root[data-theme="dark"] .path-node.done,:root[data-theme="dark"] .path-node.next { background:#b7db65; color:#172014; }
+:root[data-theme="dark"] .button.primary { color:#172014; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
 a { color: inherit; text-decoration: none; }

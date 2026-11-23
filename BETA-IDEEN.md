@@ -82,6 +82,12 @@ Bewertung: Nutzerwert und Risiko niedrig/mittel/hoch; Aufwand S/M/L. Risiken bez
 | 49. Transparente optionale Mitgliedschaft für redaktionelle Zusatzpfade, ohne Basislernen zu sperren | Mittel | L | Mittel |
 | 50. Öffentliche Fortschrittsseite nur mit widerrufbarer Freigabe und ohne Standort- oder Klardaten | Mittel | L | Hoch |
 
+## Umsetzungsstatus
+
+- **Umgesetzt:** 17 (Lernpfad drucken, über „Lernpfad drucken“ auf einer Hobbyseite), 39 (Hell-/Dunkelmodus-Schalter im Kopfbereich; Auswahl bleibt lokal gespeichert).
+- **Teilweise vorhanden:** 4, 9, 14, 28, 30, 45, 44 (Fähigkeiten je Hobby, Projektbuch, Tipps und Schritte, Coach, Erholungstag, lokale Sicherung und manuelle Aktivitätsprotokolle sind teilweise vorhanden).
+- **Noch offen:** übrige Ideen. Externe Sportanbieter, Online-Sync, öffentliche Gruppen und Galerien brauchen sichere Server-, Datenschutz- und Moderationsvoraussetzungen.
+
 ## Nächste sinnvolle Reihenfolge
 
 ## Status nach der aktuellen kleinen Beta-Erweiterung

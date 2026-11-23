@@ -13,6 +13,7 @@ const nav=document.querySelector('#nav');
 const top=document.querySelector('#top');
 const modal=document.querySelector('#modal');
 let state=load(localStorage);
+try { document.documentElement.dataset.theme=localStorage.getItem('hobbymaxing-theme')==='dark'?'dark':'light'; } catch { document.documentElement.dataset.theme='light'; }
 let filter={group:'all',query:'',place:'',gear:'',time:'',stage:''};
 let toastTimer;
 let coachHistory=[];
@@ -569,7 +570,8 @@ function render() {
   const [page,id,param]=(location.hash==='#main'?'heute':location.hash.slice(1)).split('/');
   const selected=({pfad:'entdecken',quest:'entdecken',fokus:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',challenge:'challenges',ranglisten:'challenges',raum:'challenges',woche:'heute'})[page]||page||'heute';
   nav.innerHTML=navigation.map(([route,label,icon])=>`<a href="#${route}" ${route===selected?'aria-current="page"':''}>${svg(icon)}<span>${label}</span></a>`).join('');
-  top.innerHTML=`<div class="top-left"><span class="mobile-mark mark">✳</span><div><p>${new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</p><strong>${state.name?'Hi, '+esc(state.name):'Willkommen bei Hobbymaxing'}</strong></div></div><div class="top-stats"><a class="xp-chip" href="#profil">${svg('bolt')} <strong>${totalXp(state)} XP</strong></a><a class="avatar" href="#profil" aria-label="Profil">${state.name?esc(Array.from(state.name)[0].toLocaleUpperCase('de')):svg('user')}</a></div>`;
+  const dark=document.documentElement.dataset.theme==='dark';
+  top.innerHTML=`<div class="top-left"><span class="mobile-mark mark">✳</span><div><p>${new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</p><strong>${state.name?'Hi, '+esc(state.name):'Willkommen bei Hobbymaxing'}</strong></div></div><div class="top-stats"><button class="button secondary theme-toggle" type="button" data-action="toggle-theme" aria-pressed="${dark}" aria-label="${dark?'Helles':'Dunkles'} Design aktivieren">${dark?'☀ Helles Design':'☾ Dunkles Design'}</button><a class="xp-chip" href="#profil">${svg('bolt')} <strong>${totalXp(state)} XP</strong></a><a class="avatar" href="#profil" aria-label="Profil">${state.name?esc(Array.from(state.name)[0].toLocaleUpperCase('de')):svg('user')}</a></div>`;
   const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,fokus:focusPage,wissen:quizPage,labor:labPage,studio:studioPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
   main.innerHTML=(Object.hasOwn(views,page||'heute')?views[page||'heute']:missing)(id,param);
   if(page==='profil') showPhotos(main);
@@ -663,6 +665,13 @@ document.addEventListener('click',async event=>{
   if(!action) return;
   const {action:kind,value}=action.dataset;
   switch(kind) {
+    case 'toggle-theme': {
+      const dark=document.documentElement.dataset.theme!=='dark';
+      document.documentElement.dataset.theme=dark?'dark':'light';
+      localStorage.setItem('hobbymaxing-theme',dark?'dark':'light');
+      render();
+      break;
+    }
     case 'close': modal.close(); break;
     case 'pick-mood': {
       const options=moodQuests(state,value);
