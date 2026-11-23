@@ -84,6 +84,12 @@ Bewertung: Nutzerwert und Risiko niedrig/mittel/hoch; Aufwand S/M/L. Risiken bez
 
 ## Nächste sinnvolle Reihenfolge
 
+## Status nach der aktuellen kleinen Beta-Erweiterung
+
+- **Umgesetzt:** Idee 17, druckbare Lernpfade. Auf einer Hobbyseite lässt sich der Lernpfad über „Lernpfad drucken“ als vereinfachte, tintensparende Druckansicht ausgeben.
+- **Bereits vorhanden (teilweise):** Idee 4 (Fähigkeitenfortschritt je Hobby), 9 und 14 (Erklärungen und typische Schwierigkeiten), 28 (Quest-Schritte), 30 (wöchentlicher Erholungstag), 45 (Profil-Backup), 44 (manuelle statt automatischer Sportprotokolle).
+- **Zurückgestellt:** übrige Ideen, die umfangreiche Inhalte, Konten, Server, Moderation oder sichere Anbieterfreigaben benötigen. Sie sind weiterhin Vorschläge und keine Website-Funktionen.
+
 1. Ausbau der fünf stärksten Lernpfade mit Beispielen, Fehlerkarten und klaren Meisterschaftskriterien.
 2. Fähigkeitskarte und Rückkehrpfad; beide machen Fortschritt sichtbar, ohne neue Konten zu benötigen.
 3. Koch- und Rhythmus-Studio sowie praktische Erweiterung des Scratch-Labors.
