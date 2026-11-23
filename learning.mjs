@@ -1,7 +1,7 @@
 import {byHobby,quests} from './catalog.mjs?v=06';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
-import {nextQuest} from './state.mjs?v=06';
+import {nextQuest} from './state.mjs?v=08';
 
 export const stages = ['Einstieg','Training','Meilenstein','Meisterstück'];
 

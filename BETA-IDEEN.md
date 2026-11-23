@@ -82,25 +82,100 @@ Bewertung: Nutzerwert und Risiko niedrig/mittel/hoch; Aufwand S/M/L. Risiken bez
 | 49. Transparente optionale Mitgliedschaft für redaktionelle Zusatzpfade, ohne Basislernen zu sperren | Mittel | L | Mittel |
 | 50. Öffentliche Fortschrittsseite nur mit widerrufbarer Freigabe und ohne Standort- oder Klardaten | Mittel | L | Hoch |
 
-## Umsetzungsstatus
+## Stand der Expeditions-Beta
 
-- **Umgesetzt:** 17 (Lernpfad drucken, über „Lernpfad drucken“ auf einer Hobbyseite), 39 (Hell-/Dunkelmodus-Schalter im Kopfbereich; Auswahl bleibt lokal gespeichert).
-- **Teilweise vorhanden:** 4, 9, 14, 28, 30, 45, 44 (Fähigkeiten je Hobby, Projektbuch, Tipps und Schritte, Coach, Erholungstag, lokale Sicherung und manuelle Aktivitätsprotokolle sind teilweise vorhanden).
-- **Noch offen:** übrige Ideen. Externe Sportanbieter, Online-Sync, öffentliche Gruppen und Galerien brauchen sichere Server-, Datenschutz- und Moderationsvoraussetzungen.
+### Fünf große Änderungen
 
-## Nächste sinnvolle Reihenfolge
+1. Dunkle, responsive Spielwelt mit acht Regionen, Tastaturfokus, Textansicht und Bewegungsoptionen.
+2. Vier Etappen pro Hobby. Der Pfad hebt den nächsten Schritt hervor und fasst gesperrte Stationen zusammen.
+3. Individuelle Einstiege für 54 Hobbys und vertiefte Lerninhalte für zehn Pfade in acht Kategorien.
+4. Praktische Übungen, acht Übungsstudios, prüfbare Meisterstücke und eine private Projektgalerie.
+5. Persönlicher Lernplan, Wochenexpedition, Wiederholungen, Wiedereinstieg und erweiterte lokale Profilsicherung.
 
-## Status nach der aktuellen kleinen Beta-Erweiterung
+### 25 kleinere Funktionen in der Website
 
-- **Umgesetzt:** Idee 17, druckbare Lernpfade. Auf einer Hobbyseite lässt sich der Lernpfad über „Lernpfad drucken“ als vereinfachte, tintensparende Druckansicht ausgeben.
-- **Bereits vorhanden (teilweise):** Idee 4 (Fähigkeitenfortschritt je Hobby), 9 und 14 (Erklärungen und typische Schwierigkeiten), 28 (Quest-Schritte), 30 (wöchentlicher Erholungstag), 45 (Profil-Backup), 44 (manuelle statt automatischer Sportprotokolle).
-- **Zurückgestellt:** übrige Ideen, die umfangreiche Inhalte, Konten, Server, Moderation oder sichere Anbieterfreigaben benötigen. Sie sind weiterhin Vorschläge und keine Website-Funktionen.
+| Nr. | Funktion |
+|---:|---|
+| 1 | Eine freigeschaltete Kurzquest unter „Heute 10 Minuten“ |
+| 2 | Questfilter nach Dauer, Ort, Material, Kostenrahmen und Quest-Typ |
+| 3 | Fortschrittsleiste mit erreichten Etappen je Hobby |
+| 4 | Textstatus für erreichte, aktuelle, freigeschaltete und gesperrte Stationen |
+| 5 | Vorschau mit Titel, Dauer und Lernziel je gesperrter Station |
+| 6 | Praktische Einstiegsprobe mit Auswertung anhand beobachtbarer Kriterien |
+| 7 | Aufklappbare Kurzerklärung mit dem ersten Schritt und dessen Ziel |
+| 8 | Beispiel, typischer Fehler und Korrektur in jeder regulären Quest |
+| 9 | Varianten für Alltagsmaterial, kleines Budget, kurze Zeit und andere Orte |
+| 10 | Geschätzte aktive Übungszeit bis zum Meilenstein bzw. Meisterstück |
+| 11 | Gespeicherte Materialcheckliste mit günstigen Alternativen |
+| 12 | Gemerkte Quests unter „Für später“ |
+| 13 | Privates Hobbyjournal mit Vorher-Nachher-Notiz und optionalen lokalen Fotos |
+| 14 | Wochenrückblick für aktuelle und vergangene Woche mit konkret geübten Fähigkeiten |
+| 15 | Pausierbare Lernpfade und der vorhandene freiwillige Erholungstag ohne XP |
+| 16 | Wiederholungsvorschlag nach zwei Wochen ohne Praxis |
+| 17 | Meisterstück-Abschluss mit Prüfliste und Link zur Galerie |
+| 18 | Druckansicht und herunterladbare Offline-Questkarte |
+| 19 | Leere Ansichten mit nächster Aktion, zum Beispiel in Galerie und Journal |
+| 20 | Tastaturbedienbare Formulare, Fokusmarkierung, Sprunglink und sichtbare Feldbeschriftungen |
+| 21 | Gespeicherte Einstellung für reduzierte Bewegung und Effekte |
+| 22 | Statusmeldungen für Speichern, Import, Löschen und ungültige Eingaben |
+| 23 | Suchkarten mit Hobbybeschreibung und Einstiegsdauer |
+| 24 | Persönliche Fähigkeitensammlung aus abgeschlossenen Praxisquests |
+| 25 | Profil-Export, Importvorschau und bestätigungspflichtige Löschung |
 
-1. Ausbau der fünf stärksten Lernpfade mit Beispielen, Fehlerkarten und klaren Meisterschaftskriterien.
-2. Fähigkeitskarte und Rückkehrpfad; beide machen Fortschritt sichtbar, ohne neue Konten zu benötigen.
-3. Koch- und Rhythmus-Studio sowie praktische Erweiterung des Scratch-Labors.
-4. Offline-Karten, barrierearme Darstellungen und Datenexport-Übersicht.
-5. Private Gruppen und Sport-Integrationen erst nach Server-, Datenschutz- und Moderationskonzept.
+### Status aller 50 Ausbauideen
 
-Die aktuelle Beta ergänzt bereits den freiwilligen wöchentlichen Erholungstag für eine laufende Tagesstreak. Sportanbieter werden nicht als verbunden dargestellt: Die statische GitHub-Pages-Version hat keinen sicheren Ort für OAuth-Geheimnisse oder Tokens.
+| Idee | Stand | Umfang |
+|---:|---|---|
+| 1 | Teilweise | Acht filterbare Hobbyregionen und eigene Hobbyseiten. Individuelle Kartenlandschaften stehen aus. |
+| 2 | Neu umgesetzt | Vier Hobbys empfehlen unterschiedliche Trainingsquests je gewähltem Schwerpunkt. Weitere vertiefte Pfade bieten Schwerpunkte als Übungsvarianten. |
+| 3 | Neu umgesetzt | Private Galerie für abgeschlossene Meisterstücke mit Projektkarten. |
+| 4 | Ausgebaut | Eigene Sammlung mit praktisch geübten Fähigkeiten und Datum. |
+| 5 | Neu umgesetzt | Bis zu drei wählbare Wochenetappen mit aktuellem Fortschritt. |
+| 6 | Neu umgesetzt | Vier Wegbegleiter, die durch abgeschlossene Lernetappen freigeschaltet werden. |
+| 7 | Neu umgesetzt | Vier jederzeit aufrufbare saisonale Sammlungen. |
+| 8 | Neu umgesetzt | Praktische Diagnose mit beobachtbarem Erfolgskriterium und Empfehlung. |
+| 9 | Ausgebaut | Beispiele, Fehler und Korrektur direkt in den Quests. |
+| 10 | Neu umgesetzt | Anpassung für Zeit, Ort, Material und Budget. |
+| 11 | Neu umgesetzt | Nach zwei Wochen ohne Praxis wird eine ältere Übung vorgeschlagen. |
+| 12 | Neu umgesetzt | Kriterien für jedes Meisterstück, im Abschluss einzeln bestätigt. |
+| 13 | Ausgebaut | Schritt- und Kriterienchecklisten, Projektziel und dokumentiertes Ergebnis. |
+| 14 | Teilweise | Fehler und Korrekturen pro Quest. Mehrere bestehende Pfade haben Hinweise pro Schritt. |
+| 15 | Neu umgesetzt | Privater Vorher-Nachher-Vergleich mit zwei optionalen lokalen Fotos. |
+| 16 | Teilweise | Sieben erneut geprüfte Quellen mit Datum, Sprache, Niveau und Lernziel. Übernommene ungeprüfte Links sind gekennzeichnet. |
+| 17 | Ausgebaut | Lernpfad und Quest druckbar. Freigeschaltete Questkarten als Offline-Textdatei. |
+| 18 | Teilweise | Text- und Fokusvarianten, eingeplante Vorbereitung bei eingeschränkter Motorik und gerätegestützte Vorlesemöglichkeit. Vertiefte Alternativpfade für jede Anforderung stehen aus. |
+| 19 | Ausgebaut | Scratch-Blocklabor plus geführte Testfälle für wiederholbare Starts und verständliche Rückmeldung. |
+| 20 | Neu umgesetzt | Zeichenstudio mit Formen, Vorder- und Hintergrundebenen und Aufgabenfeedback. |
+| 21 | Neu umgesetzt | Tempo, Metronom und Rückmeldung zu selbst geklopften Intervallen. |
+| 22 | Ausgebaut | Schachaufgaben mit Zugprüfung, Tastatursteuerung und Erläuterungen zu Motiven. |
+| 23 | Neu umgesetzt | Skaliertes Einstiegsrezept und rückwärts berechnete Startzeiten. |
+| 24 | Neu umgesetzt | Fotoraster mit Kompositionsübung und temporärem lokalem Bildimport. |
+| 25 | Neu umgesetzt | Lauf- und Krafttrainingstagebuch mit Belastungsnotiz und Verlauf. |
+| 26 | Neu umgesetzt | Lokaler Vergleich eigener Aufnahme mit verfügbarer Gerätestimme. Mikrofon und lokale Stimme sind geräteabhängig. |
+| 27 | Ausgebaut | Lerncoach bietet den lokal gespeicherten Übungsplan an. |
+| 28 | Ausgebaut | Konkreter kurzer erster Schritt und abhakbarer Fokusmodus. |
+| 29 | Neu umgesetzt | Wochenrückblick mit Praxisfähigkeiten und nächster Quest. |
+| 30 | Bereits vorhanden | Ein freiwilliger Erholungstag je Woche während einer laufenden Tagesserie. |
+| 31 | Neu umgesetzt | Pausierte Pfade erscheinen mit eigenem Wiedereinstieg und Wiederholungsoption. |
+| 32 | Ausgebaut | Stimmungsvorschlag mit Grund, Dauer und „Passt heute nicht“. |
+| 33 | Neu umgesetzt | Zieldatum und Materialvorbereitung zum Meisterstück im persönlichen Plan. |
+| 34 | Teilweise | Tägliche oder wöchentliche Erinnerung bei geöffneter App. Jederzeit pausierbar. Hintergrundbenachrichtigungen stehen aus. |
+| 35 | Neu umgesetzt · Server | Privater Raum für zwei Personen und ihre freigegebenen Wochenbeiträge. |
+| 36 | Neu umgesetzt · Server | Teamraum mit maximal sieben Praxistagen je Person und sichtbarer Berechnung. |
+| 37 | Ausgebaut · Server | Private Einladungsräume mit begrenzter Personenzahl und Ablaufzeit. |
+| 38 | Neu umgesetzt · Server | Projektkarte über einen widerrufbaren Link nach ausdrücklicher Zustimmung. |
+| 39 | Offen | Eine öffentliche Galerie und ihr Moderationsbetrieb stehen aus. Private und einzeln freigegebene Karten sind verfügbar. |
+| 40 | Neu umgesetzt · Server | Teamrangfolge nach gemeldeten Praxistagen. |
+| 41 | Teilweise | Geprüfte Lernquellen und Einführung von Verband, Verein und Bibliothek. Eigenständige Partnerpfade stehen aus. |
+| 42 | Neu umgesetzt | Trainings-CSV mit Vorschau und optionaler Übernahme von Belastung und Notizen. |
+| 43 | Offen | Ein bestätigter Anbieterzugang und ein eingerichtetes OAuth-Backend fehlen. |
+| 44 | Neu umgesetzt | Manuelles Lauf- und Krafttrainingstagebuch mit optionalem CSV-Import. |
+| 45 | Ausgebaut | Sicherung mit Vorschau und lokaler Löschung. Private Fotos verbleiben browserlokal und sind von der JSON-Sicherung ausgenommen. |
+| 46 | Offen | Gerätewechsel läuft über Profilexport und Import. Konto und Synchronisationsbetrieb stehen aus. |
+| 47 | Ausgebaut | Textansicht ohne Karten- und Hero-Bilder, mit reduzierter Bewegung. |
+| 48 | Ausgebaut | Größere Schrift und Bewegungsoption lokal speicherbar. Kernwege sind per Tastatur bedienbar. |
+| 49 | Offen | Redaktionelles Mitgliedschaftsangebot und Zahlungsbetrieb sind nicht eingerichtet. |
+| 50 | Neu umgesetzt · Server | Freiwillige, widerrufbare Fortschrittsseite. Der Link zeigt anonymisierte Summen und läuft nach 30 Tagen ab. |
+
+Private Wochenräume und widerrufbare Freigaben sind in der Node-Version verfügbar. Die übrigen lokalen Lernfunktionen laufen auch auf GitHub Pages.
 
