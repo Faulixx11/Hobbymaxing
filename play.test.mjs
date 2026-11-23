@@ -1,9 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initial,nextQuest,unlocks} from './state.mjs?v=06';
-import {languages,selectSpeechVoice,moods,moodQuests} from './play.mjs';
+import {languages,selectSpeechVoice,moods,moodQuests,weeklyRecap,profileBackup,parseBackup} from './play.mjs';
 import {videoSearchUrl,resourcesForStage} from './resources.mjs';
 import {hobbies,quests} from './catalog.mjs?v=06';
+
+test('weekly recap summarizes only the selected week and avoids duplicate hobby or skill labels',()=>{
+  const state=initial(),quest=Object.values(quests).find(item=>item.type!=='Challenge'&&item.stage===1);
+  state.entries=[
+    {week:'2026-11-23',day:'2026-11-23',quest:quest.id,xp:25,time:'2026-11-23T10:00:00Z',result:'Erster Versuch'},
+    {week:'2026-11-23',day:'2026-11-24',quest:quest.id,xp:0,time:'2026-11-24T10:00:00Z',result:'Wiederholung'},
+    {week:'2026-11-16',day:'2026-11-17',quest:quest.id,xp:25,time:'2026-11-17T10:00:00Z',result:'Vorwoche'}
+  ];
+  const recap=weeklyRecap(state,'2026-11-23');
+  assert.equal(recap.days,2);
+  assert.equal(recap.quests,2);
+  assert.equal(recap.xp,25);
+  assert.equal(recap.hobbies.length,1);
+  assert.equal(recap.entries[0].result,'Erster Versuch');
+});
+
+test('profile backup identifies its contents and remains importable',()=>{
+  const state=initial();
+  state.name='Jonas';
+  state.active=['scratch'];
+  const file=JSON.parse(profileBackup(state));
+  assert.equal(file.format,'hobbymaxing-profile');
+  assert.equal(file.summary.hobbies,1);
+  assert.equal(file.summary.photosIncluded,false);
+  assert.ok(Number.isFinite(Date.parse(file.exportedAt)));
+  assert.equal(parseBackup(JSON.stringify(file)).name,'Jonas');
+});
 
 test('language cards have complete locale tags and five translated practice phrases',()=>{
   assert.equal(initial().language,'en');

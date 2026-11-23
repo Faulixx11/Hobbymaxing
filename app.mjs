@@ -2,9 +2,9 @@ import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v
 import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak,validDay,validResult,changeEntry,updatePlan,inviteJoin,friendFinished,firstPrerequisite,takeRestDay} from './state.mjs?v=06';
 import {lessons} from './lessons.mjs';
 import {resourcesForStage} from './resources.mjs';
-import {stages,questionOptions,helpTopics,coachReply,blocks,experiments,runBlocks} from './learning.mjs';
+import {stages,questionOptions,helpTopics,coachReply,blocks,experiments,runBlocks,learningRoute} from './learning.mjs';
 import {studios,studioCell,checkStudio,playBeat} from './studios.mjs';
-import {languages,selectSpeechVoice,moods,moodQuests,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,searchKey,matchingGear} from './play.mjs';
+import {languages,selectSpeechVoice,moods,moodQuests,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,searchKey,matchingGear,weeklyRecap} from './play.mjs';
 import {preparePhoto,putPhoto,deletePhoto,showPhotos} from './photos.mjs';
 import {roomSupported,callRoom,roomToken,knownRoomToken} from './rooms.mjs';
 
@@ -220,12 +220,13 @@ function pathPage(id) {
   const hits=hobby.quests.filter(quest=>completed(state,quest.id)).length;
   const mastered=Object.hasOwn(state.practice,'quiz-'+id);
   const skills=[...new Set(hobby.quests.map(quest=>quest.skill).filter(Boolean))];
+  const route=learningRoute(state,hobby);
   return `<p>${link('Hobby-Katalog','entdecken','text-button')}</p><div class="path-banner surface ${hobby.group}"><span class="path-emoji">${hobby.icon}</span><div><p class="eyebrow">${groupNames[hobby.group]}</p><h1>${hobby.name}</h1><p>${hobby.skill} · Level ${level(state,hobby)}</p></div>${btn(active?'Aus meinen Hobbys entfernen':'Hobby merken','active',id,'button secondary')}</div>
   <div class="academy-layout section">
     <div>
       <section class="surface mission hobby-intro"><h2>Worum geht’s bei diesem Hobby?</h2><p>${lesson.intro}</p><h3>So gelingt der Einstieg</h3><p>${lesson.technique}</p><div class="tags">${chip(hobby.place)}${chip(esc(hobby.gear))}${chip('Erste Quest: '+hobby.quests[0].minutes+' Min.')}</div>
       <div class="actions intro-mobile-practice">${link('Wissenscheck','wissen/'+id,'button secondary')}${id==='scratch'?link('Blocklabor','labor','button secondary'):Object.hasOwn(studios,id)?link('Übungsstudio','studio/'+id,'button secondary'):''}${btn('Lernpfad drucken','print-path',id,'button secondary')}</div></section>
-      <section class="section" aria-label="Lernpfad"><div class="section-title"><div><h2>Dein Lernpfad</h2><p>${hits} von ${hobby.quests.length} Quests erledigt</p></div></div>
+      <section class="section" aria-label="Lernpfad"><div class="section-title"><div><h2>Dein Lernpfad</h2><p>${hits} von ${hobby.quests.length} Quests erledigt · ${route.stages.filter(stage=>stage.status==='done').length} von 4 Etappen erreicht</p></div></div>
       <ol class="academy-path">${stages.map((label,index)=>{
         const station=hobby.quests.filter(quest=>quest.stage===index+1);
         const cleared=station.some(quest=>completed(state,quest.id));
@@ -233,12 +234,12 @@ function pathPage(id) {
         const isNext=station.includes(next);
         return `<li class="academy-stop ${cleared?'cleared':unlocked?'unlocked':'locked'}">
           <span class="academy-node ${isNext?'next':''}" aria-hidden="true">${cleared?svg('check'):unlocked?index+1:svg('lock')}</span>
-          <div class="academy-body"><div class="stage-heading"><h3>${label}</h3><span>${cleared?'Erreicht':unlocked?(isNext?'Als Nächstes':'Freigeschaltet'):'Gesperrt'}</span></div>
-          <div class="station-options">${station.map(quest=>{
+          <div class="academy-body"><div class="stage-heading"><h3>${label}</h3><span>${cleared?'Erreicht':unlocked?(isNext?'Als Nächstes':'Freigeschaltet'):'Gesperrt'}</span></div><p>${route.stages[index].guidance}</p>
+          <details class="station-options station-details" ${isNext||unlocked?'open':''}><summary>${station.length} ${station.length===1?'Aufgabe':'Aufgaben'} · ${station.filter(item=>completed(state,item.id)).length} erledigt${station.some(item=>unlocks(state,item)&&!completed(state,item.id))?' · Nächste Quest ansehen':''}</summary><div class="station-list">${station.map(quest=>{
             const done=completed(state,quest.id), open=unlocks(state,quest);
             return `<article class="surface path-body"><p class="eyebrow">${questTime(quest)} · +${quest.xp} XP</p><h4>${quest.title}</h4><p>${quest.skill?quest.skill+" · ":""}${quest.result}</p>${!matchingGear(state,hobby,quest)?"<p><small>Benötigt Ausrüstung. Prüfe die Materialliste vor dem Start.</small></p>":""}
             ${open?link(done?'Erneut üben':quest.stage===1?'Erste Quest starten':'Quest starten','quest/'+quest.id,'button '+(quest===next?'primary':'secondary')):`<small>${quest.any?'Schließe eine der Trainingsquests ab.':'Schließe die vorherige Etappe ab.'}</small>`}</article>`;
-          }).join('')}</div></div></li>`;
+          }).join('')}</div></details></div></li>`;
       }).join('')}</ol></section>
     </div>
     <aside class="academy-sidebar">
@@ -525,6 +526,7 @@ function weekPage() {
 function profilePage() {
   const {running,best}=streaks(state);
   const daily=dailyStreak(state);
+  const recap=weeklyRecap(state);
   const bests=new Map();
   for(const entry of state.entries) {
     if(entry.score===null) continue;
@@ -532,6 +534,7 @@ function profilePage() {
     if(!bests.has(id)||bests.get(id).score<entry.score) bests.set(id,entry);
   }
   return `${titleBlock('DEIN PROFIL',state.name?'Hi, '+esc(state.name)+'.':'Dein Projektbuch.','Hier findest du die Quests, Projekte und persönlichen Bestleistungen, die du gesammelt hast.')}
+    <section class="surface utility section narrow"><p class="eyebrow">DIESE WOCHE</p><h2>Dein Lernrückblick</h2>${recap.quests?`<p>${recap.quests} ${recap.quests===1?'Quest':'Quests'} an ${recap.days} ${recap.days===1?'Tag':'Tagen'} · ${recap.xp} XP</p><p>${recap.hobbies.length?'Hobbys: '+recap.hobbies.map(esc).join(', '):''}${recap.skills.length?' · Geübt: '+recap.skills.map(esc).join(', '):''}</p>${recap.projects.length?`<p><strong>Meisterstücke:</strong> ${recap.projects.map(project=>esc(project.title)).join(', ')}</p>`:''}`:empty('Diese Woche ist noch kein Praxisfortschritt gespeichert. Eine kurze Quest ist ein guter Anfang.')}</section>
     <div class="stat-grid"><div class="surface stat"><span>${svg('bolt')} Erfahrung</span><strong>${totalXp(state)} XP</strong></div><div class="surface stat"><span>${svg('flame')} Tagesstreak</span><strong>${daily.running} T.</strong><small>Bestwert: ${daily.best} ${daily.best===1?'Tag':'Tage'}</small></div><div class="surface stat"><span>✦ Aktuelle Wochenserie</span><strong>${running} Wo.</strong></div><div class="surface stat"><span>${svg('trophy')} Beste Wochenserie</span><strong>${best} Wo.</strong></div></div>
     <div class="detail-grid section"><section class="surface mission"><h2>Projektbuch</h2>${state.entries.length?`<ul class="plain-list timeline">${state.entries.map(entry=>`<li><div><small>${dateLabel(entry.day)} · ${quests[entry.quest].type}</small><h3><a href="#quest/${entry.quest}">${quests[entry.quest].title}</a></h3><p>${entry.score==null?'':entry.score+' · '}${esc(entry.result)}</p>${entry.note?`<p>${esc(entry.note)}</p>`:''}${entry.quest==='challenge-foto'?`<div class="project-photo" data-photo="${esc(entry.id)}"></div>`:''}</div>${btn('Erfolgskarte','card',entry.id,'text-button')}</li>`).join('')}</ul>`:empty('Schließe deine erste Quest ab. Dann taucht sie hier auf.') }
     <h2>Abgeschlossene Wochenvorhaben</h2>${state.journeys.map(id=>journeys.find(journey=>journey.id===id)).filter(journey=>journey.quests.every(id=>completed(state,id))).map(journey=>`<p>${journey.icon} ${journey.title}</p>`).join('')||empty('Deine fertigen Wochenvorhaben erscheinen hier.')}</section>
