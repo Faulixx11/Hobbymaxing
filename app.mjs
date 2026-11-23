@@ -1,3 +1,4 @@
+import {gameMapPage} from './game-map.mjs';
 import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=06';
 import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak,validDay,validResult,changeEntry,updatePlan,inviteJoin,friendFinished,firstPrerequisite,takeRestDay} from './state.mjs?v=08';
 import {lessons} from './lessons.mjs';
@@ -41,8 +42,9 @@ let focusTicker;
 const featured=['fussball','fotografie','kochen','zeichnen','wandern','tennis'];
 const groupNames=Object.fromEntries(groups.map(([id,name])=>[id,name]));
 const art={wandern:'mountain',fussball:'football',fotografie:'photo',kochen:'cooking'};
-const navigation=[['heute','Heute','home'],['entdecken','Entdecken','compass'],['challenges','Challenges','trophy'],['profil','Profil','user'],['hilfe','Hilfe','help']];
+const navigation=[['heute','Heute','home'],['entdecken','Entdecken','compass'],['karte','Karte','map'],['challenges','Challenges','trophy'],['profil','Profil','user'],['hilfe','Hilfe','help']];
 const vectors={
+  map:'M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6zm6-3v15m6-12v15',
   home:'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z',compass:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM16 8l-2 6-6 2 2-6z',
   trophy:'M7 4h10v6a5 5 0 0 1-10 0zM7 6H3v2a4 4 0 0 0 4 4m10-6h4v2a4 4 0 0 1-4 4m-5 3v5m-5 0h10',
   user:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2',
@@ -176,7 +178,7 @@ function todayPage() {
     ${link(recommended?(newSuggestion?'Vorschlag ansehen':'Quest fortsetzen'):'Hobbys entdecken',heroLink,'button primary')}</div><div class="hero-place"><span>✦</span> ${recommended?'DEIN LERNPFAD':'ECHTE ERLEBNISSE'}</div></section>
     ${quickQuest?`<section class="surface utility section expedition-panel"><h2>Heute 10 Minuten</h2><p>${esc(byHobby[quickQuest.hobby].name)} · ${esc(quickQuest.title)} · ${questTime(quickQuest)}</p>${link('Kurze Quest starten','quest/'+quickQuest.id,'button secondary')}</section>`:''}
     ${paused.length?`<section class="surface utility section expedition-panel"><h2>Wenn du wieder einsteigen willst</h2><div class="actions">${paused.map(hobby=>link(esc(hobby.name),'pfad/'+hobby.id,'button secondary')).join('')}</div></section>`:''}
-    <section class="bubble-row" aria-label="Schnellauswahl">${btn(svg('time')+' Kurze Quests','quick','time','pill')}${btn('⌂ &nbsp; Zu Hause','quick','home','pill')}${btn('✦ &nbsp; Etwas Neues','quick','new','pill')}</section>
+    <section class="bubble-row" aria-label="Schnellauswahl"><a class="pill" href="#karte">✦ Spielkarte öffnen</a>${btn(svg('time')+' Kurze Quests','quick','time','pill')}${btn('⌂ &nbsp; Zu Hause','quick','home','pill')}${btn('✦ &nbsp; Etwas Neues','quick','new','pill')}</section>
     <section class="section"><div class="section-title"><div><p class="eyebrow"><span>✦</span> HOBBY-KATALOG</p><h2>${active.length?'Deine Hobbys':'Was willst du heute machen?'}</h2></div>${link('Alle '+hobbies.length+' Hobbys','entdecken','text-button')}</div>
     <div class="hobby-grid">${(active.length?active.slice(0,3):featured.slice(0,3).map(id=>byHobby[id])).map(hobby=>pathCard(hobby,{image:true})).join('')}</div></section>
     <section class="section surface practice-promo"><div class="tile-icon lilac">⌘</div><div><h2>Teste dein Können direkt hier</h2><p>Programmiere deine erste Figur im Scratch-Blocklabor oder mache einen Wissenscheck in deinem Lernpfad.</p></div>${link('Blocklabor öffnen','labor','button secondary')}</section>
@@ -785,7 +787,7 @@ function render() {
   nav.innerHTML=navigation.map(([route,label,icon])=>`<a href="#${route}" ${route===selected?'aria-current="page"':''}>${svg(icon)}<span>${label}</span></a>`).join('');
   const dark=document.documentElement.dataset.theme==='dark';
   top.innerHTML=`<div class="top-left"><span class="mobile-mark mark">✳</span><div><p>${new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</p><strong>${state.name?'Hi, '+esc(state.name):'Willkommen bei Hobbymaxing'}</strong></div></div><div class="top-stats"><button class="button secondary theme-toggle" type="button" data-action="toggle-theme" aria-pressed="${dark}" aria-label="${dark?'Helles':'Dunkles'} Design aktivieren">${dark?'☀ Helles Design':'☾ Dunkles Design'}</button><a class="xp-chip" href="#profil">${svg('bolt')} <strong>${totalXp(state)} XP</strong></a><a class="avatar" href="#profil" aria-label="Profil">${state.name?esc(Array.from(state.name)[0].toLocaleUpperCase('de')):svg('user')}</a></div>`;
-  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,fokus:focusPage,wissen:quizPage,labor:labPage,studio:studioPage,praxis:id=>practiceStudioPage(id)||missing(),saison:seasonPage,faehigkeiten:skillPage,galerie:galleryPage,gespeichert:savedPage,journal:journalPage,freigaben:sharesPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
+  const views={heute:todayPage,entdecken:discoverPage,karte:id=>gameMapPage(totalXp(state),id),pfad:pathPage,quest:questPage,fokus:focusPage,wissen:quizPage,labor:labPage,studio:studioPage,praxis:id=>practiceStudioPage(id)||missing(),saison:seasonPage,faehigkeiten:skillPage,galerie:galleryPage,gespeichert:savedPage,journal:journalPage,freigaben:sharesPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
   unmountPracticeStudio();
   main.innerHTML=(Object.hasOwn(views,page||'heute')?views[page||'heute']:missing)(id,param);
   if(page==='praxis') mountPracticeStudio(main,id,{
