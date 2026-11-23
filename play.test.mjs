@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initial,nextQuest,unlocks} from './state.mjs?v=06';
-import {languages,selectSpeechVoice,moods,moodQuests,weeklyRecap} from './play.mjs';
+import {languages,selectSpeechVoice,moods,moodQuests,weeklyRecap,profileBackup,parseBackup} from './play.mjs';
 import {videoSearchUrl,resourcesForStage} from './resources.mjs';
 import {hobbies,quests} from './catalog.mjs?v=06';
 
@@ -18,6 +18,18 @@ test('weekly recap summarizes only the selected week and avoids duplicate hobby 
   assert.equal(recap.xp,25);
   assert.equal(recap.hobbies.length,1);
   assert.equal(recap.entries[0].result,'Erster Versuch');
+});
+
+test('profile backup identifies its contents and remains importable',()=>{
+  const state=initial();
+  state.name='Jonas';
+  state.active=['scratch'];
+  const file=JSON.parse(profileBackup(state));
+  assert.equal(file.format,'hobbymaxing-profile');
+  assert.equal(file.summary.hobbies,1);
+  assert.equal(file.summary.photosIncluded,false);
+  assert.ok(Number.isFinite(Date.parse(file.exportedAt)));
+  assert.equal(parseBackup(JSON.stringify(file)).name,'Jonas');
 });
 
 test('language cards have complete locale tags and five translated practice phrases',()=>{

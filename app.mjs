@@ -235,11 +235,11 @@ function pathPage(id) {
         return `<li class="academy-stop ${cleared?'cleared':unlocked?'unlocked':'locked'}">
           <span class="academy-node ${isNext?'next':''}" aria-hidden="true">${cleared?svg('check'):unlocked?index+1:svg('lock')}</span>
           <div class="academy-body"><div class="stage-heading"><h3>${label}</h3><span>${cleared?'Erreicht':unlocked?(isNext?'Als Nächstes':'Freigeschaltet'):'Gesperrt'}</span></div><p>${route.stages[index].guidance}</p>
-          <div class="station-options">${station.map(quest=>{
+          <details class="station-options station-details" ${isNext||unlocked?'open':''}><summary>${station.length} ${station.length===1?'Aufgabe':'Aufgaben'} · ${station.filter(item=>completed(state,item.id)).length} erledigt${station.some(item=>unlocks(state,item)&&!completed(state,item.id))?' · Nächste Quest ansehen':''}</summary><div class="station-list">${station.map(quest=>{
             const done=completed(state,quest.id), open=unlocks(state,quest);
             return `<article class="surface path-body"><p class="eyebrow">${questTime(quest)} · +${quest.xp} XP</p><h4>${quest.title}</h4><p>${quest.skill?quest.skill+" · ":""}${quest.result}</p>${!matchingGear(state,hobby,quest)?"<p><small>Benötigt Ausrüstung. Prüfe die Materialliste vor dem Start.</small></p>":""}
             ${open?link(done?'Erneut üben':quest.stage===1?'Erste Quest starten':'Quest starten','quest/'+quest.id,'button '+(quest===next?'primary':'secondary')):`<small>${quest.any?'Schließe eine der Trainingsquests ab.':'Schließe die vorherige Etappe ab.'}</small>`}</article>`;
-          }).join('')}</div></div></li>`;
+          }).join('')}</div></details></div></li>`;
       }).join('')}</ol></section>
     </div>
     <aside class="academy-sidebar">

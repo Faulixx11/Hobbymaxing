@@ -115,7 +115,8 @@ const safeId=value=>str(value,50)&&/^[a-f0-9-]{8,50}$/i.test(value);
 
 export function profileBackup(state) {
   const {name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}=state;
-  return JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}},null,2);
+  const profile={name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints};
+  return JSON.stringify({format:'hobbymaxing-profile',version:2,exportedAt:new Date().toISOString(),summary:{hobbies:active.length,questResults:entries.length,practiceSessions:Object.keys(practice).length,plannedQuests:plans.length,sharedScores:scores.length,photosIncluded:false},profile},null,2);
 }
 export function parseBackup(text) {
   if(text.length>1000000) return null;

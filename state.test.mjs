@@ -4,7 +4,7 @@ import {hobbies,quests,byHobby,challenges} from './catalog.mjs';
 import {initial,load,record,totalXp,unlocks,level,streaks,weekGoal,validShare,encode,decode,leaderboard,rankId,earnPractice,dailyStreak,changeEntry,inviteJoin,friendFinished,firstPrerequisite,updatePlan,takeRestDay} from './state.mjs';
 import {lessons} from './lessons.mjs';
 import {resources} from './resources.mjs';
-import {questionOptions,coachReply,experiments,runBlocks} from './learning.mjs';
+import {questionOptions,coachReply,experiments,runBlocks,learningRoute} from './learning.mjs';
 import {studios,studioCell,checkStudio} from './studios.mjs';
 import {questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,languages,searchKey} from './play.mjs';
 
@@ -31,6 +31,17 @@ test('every hobby has an explanation, four complete stages and a valid quiz',()=
   for (const [id,items] of Object.entries(resources)) {
     assert.ok(byHobby[id]);
     assert.ok(items.every(([stage,label,source,url])=>stage>=1&&stage<=4&&label&&source&&url.startsWith('https://')));
+  }
+});
+
+test('each hobby learning route has four stage guides and accurate next-step progress',()=>{
+  const state=initial();
+  for(const hobby of hobbies){
+    const route=learningRoute(state,hobby);
+    assert.equal(route.stages.length,4,hobby.id);
+    assert.ok(route.stages.every(stage=>stage.guidance&&stage.total>0),hobby.id);
+    assert.equal(route.completed,0,hobby.id);
+    assert.equal(route.total,hobby.quests.length,hobby.id);
   }
 });
 
