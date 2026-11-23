@@ -36,6 +36,7 @@ export async function preparePhoto(file) {
 }
 export const putPhoto=(id,blob)=>transact('readwrite',store=>store.put(blob,id));
 export const deletePhoto=id=>transact('readwrite',store=>store.delete(id));
+export const clearPhotos=()=>transact('readwrite',store=>store.clear());
 export function showPhotos(root) {
   for(const holder of root.querySelectorAll('[data-photo]')) {
     transact('readonly',store=>store.get(holder.dataset.photo)).then(blob=>{
@@ -45,7 +46,7 @@ export function showPhotos(root) {
       image.addEventListener('load',()=>URL.revokeObjectURL(url),{once:true});
       image.addEventListener('error',()=>URL.revokeObjectURL(url),{once:true});
       image.src=url;
-      image.alt='Dein privates Quest-Foto';
+      image.alt=holder.dataset.photoAlt||'Dein privates Quest-Foto';
       holder.append(image);
     }).catch(()=>{});
   }

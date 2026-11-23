@@ -1,9 +1,14 @@
 import { byHobby, quests } from './catalog.mjs?v=06';
+import { cleanExpedition, expeditionDefaults } from './expedition.mjs';
 
-export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, practiceDays:{}, restDays:[], preferences:{}, stepChecks:{}, language:'en', labDrafts:{}, studioDrafts:{}, checkpoints:{}});
+export const initial = () => ({name:'', playerId:'', active:[], entries:[], plans:[], scores:[], goals:{}, journeys:[], invites:[], practice:{}, practiceDays:{}, restDays:[], preferences:{}, stepChecks:{}, language:'en', labDrafts:{}, studioDrafts:{}, checkpoints:{}, expedition:expeditionDefaults(), practiceDrafts:{}});
 export const key = 'hobbymaxing-v1';
 export function load(storage) {
-  try { return {...initial(), ...JSON.parse(storage.getItem(key) || '{}')}; } catch { return initial(); }
+  try {
+    const state={...initial(),...JSON.parse(storage.getItem(key)||'{}')};
+    state.expedition=cleanExpedition(state.expedition);
+    return state;
+  } catch { return initial(); }
 }
 export function localDate(date=new Date()) {
   return [date.getFullYear(),date.getMonth()+1,date.getDate()].map(n=>String(n).padStart(2,'0')).join('-');
@@ -96,7 +101,7 @@ export function record(state, quest, values, now=new Date()) {
     id:crypto.randomUUID(), ...reference, day, week, time:now.toISOString(),
     score:quest.max?values.score:null, result:String(values.result||'').trim().slice(0,160),
     note:String(values.note||'').trim().slice(0,420), confidence:values.confidence==='retry'?'retry':values.confidence==='ready'?'ready':'', invite:values.invite||'', xp:hasReward?0:quest.xp,
-    previous:comparable[0]?.score??null, best:comparable.length?Math.max(...comparable.map(item=>item.score)):null
+    verified:quest.stage===4&&values.verified===true, previous:comparable[0]?.score??null, best:comparable.length?Math.max(...comparable.map(item=>item.score)):null
   };
   state.playerId ||= crypto.randomUUID();
   state.entries.unshift(entry);

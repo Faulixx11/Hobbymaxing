@@ -1,11 +1,14 @@
 import {groups,hobbies,byHobby,quests,challenges,journeys} from './catalog.mjs?v=06';
-import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak,validDay,validResult,changeEntry,updatePlan,inviteJoin,friendFinished,firstPrerequisite,takeRestDay} from './state.mjs?v=06';
+import {key,load,localDate,shift,monday,weekGoal,activeDays,streaks,completed,unlocks,level,nextQuest,totalXp,record,badges,leaderboard,encode,decode,validShare,rankId,canPlan,earnPractice,dailyStreak,validDay,validResult,changeEntry,updatePlan,inviteJoin,friendFinished,firstPrerequisite,takeRestDay} from './state.mjs?v=08';
 import {lessons} from './lessons.mjs';
-import {resourcesForStage} from './resources.mjs';
+import {resourcesForStage,reviewedResources,resourcesReviewedOn} from './resources.mjs?v=08';
 import {stages,questionOptions,helpTopics,coachReply,blocks,experiments,runBlocks} from './learning.mjs';
 import {studios,studioCell,checkStudio,playBeat} from './studios.mjs';
-import {languages,selectSpeechVoice,moods,moodQuests,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,searchKey,matchingGear} from './play.mjs';
-import {preparePhoto,putPhoto,deletePhoto,showPhotos} from './photos.mjs';
+import {languages,selectSpeechVoice,moods,moodQuests,starterGuides,preferences,questMatches,recommend,featuredChallenge,profileBackup,parseBackup,mergeBackup,searchKey,matchingGear} from './play.mjs?v=08';
+import {preparePhoto,putPhoto,deletePhoto,clearPhotos,showPhotos} from './photos.mjs?v=08';
+import {expeditionContent} from './expedition-content.mjs';
+import {practiceStudios,practiceStudioPage,mountPracticeStudio,unmountPracticeStudio,sanitizePracticeDraft} from './expedition-studios.mjs';
+import {budgetLabel,expeditionNext,milestoneMinutes,readingChoices,reviewQuest,routeSummary,seasons,shortQuest,skillHistory,timeChoices} from './expedition.mjs';
 import {roomSupported,callRoom,roomToken,knownRoomToken} from './rooms.mjs';
 
 const main=document.querySelector('#main');
@@ -13,13 +16,15 @@ const nav=document.querySelector('#nav');
 const top=document.querySelector('#top');
 const modal=document.querySelector('#modal');
 let state=load(localStorage);
-try { document.documentElement.dataset.theme=localStorage.getItem('hobbymaxing-theme')==='dark'?'dark':'light'; } catch { document.documentElement.dataset.theme='light'; }
-let filter={group:'all',query:'',place:'',gear:'',time:'',stage:''};
+let pendingBackup=null;
+try { document.documentElement.dataset.theme=localStorage.getItem('hobbymaxing-theme')==='light'?'light':'dark'; } catch { document.documentElement.dataset.theme='dark'; }
+let filter={group:'all',query:'',place:'',gear:'',time:'',stage:'',cost:''};
 let toastTimer;
 let coachHistory=[];
 let language=Object.hasOwn(languages,state.language)?state.language:'en';
 let importedRank='';
 let onlineRooms=false;
+let sharesView=null;
 let roomTimer;
 let roomLoading=false;
 let roomWriting=false;
@@ -132,7 +137,7 @@ function pathCard(hobby,{image=false}={}) {
   const hits=hobby.quests.filter(quest=>completed(state,quest.id)).length;
   return `<a class="hobby-card surface" href="#pfad/${hobby.id}">
     <div class="card-art ${hobby.group} ${image&&art[hobby.id]?art[hobby.id]:''}"><span>${hobby.icon}</span></div>
-    <div class="card-content"><p class="eyebrow">${groupNames[hobby.group]}</p><h3>${hobby.name}</h3><p>${hobby.skill}</p>
+    <div class="card-content"><p class="eyebrow">${groupNames[hobby.group]}</p><h3>${hobby.name}</h3><p>${esc(lessons[hobby.id].intro.split(/(?<=[.!?])\s/)[0])}</p>
     <div class="card-meta"><span>${svg('time')} ${hobby.quests[0].minutes} Min.</span><span>${hits?hits+' / '+hobby.quests.length+' erledigt':'Level '+level(state,hobby)}</span></div></div></a>`;
 }
 function weekCard() {
@@ -152,11 +157,13 @@ function streakCard() {
   const streak=dailyStreak(state);
   const restUsed=state.restDays?.some(day=>monday(day)===monday())||false;
   const restAvailable=streak.running>0&&!streak.doneToday&&!restUsed;
-  return `<section class="surface streak-card"><div class="tile-icon ember">${svg('flame')}</div><div><h2>${streak.running} ${streak.running===1?'Tag':'Tage'} in Folge</h2><p>${streak.doneToday?'Heute geschafft.':state.restDays?.includes(localDate())?'Heute ist dein Erholungstag. Deine Serie bleibt erhalten.':streak.running?'Eine Quest, App-Übung oder Wiederholung hält deine Tagesstreak.':'Schließe eine Quest oder App-Übung ab.'}</p>${restUsed&&!state.restDays?.includes(localDate())?'<small>Der Erholungstag dieser Woche ist bereits genutzt.</small>':''}${restAvailable?btn('Heute pausieren','rest-day','','text-button'):''}</div></section>`;
+  return `<section class="surface streak-card"><div class="tile-icon ember">${svg('flame')}</div><div><h2>${streak.running} ${streak.running===1?'Tag':'Tage'} in Folge</h2><p>${state.restDays?.includes(localDate())?'Heute ist dein Erholungstag. Deine Serie bleibt erhalten.':streak.doneToday?'Heute geschafft.':streak.running?'Eine Quest, App-Übung oder Wiederholung hält deine Tagesstreak.':'Schließe eine Quest oder App-Übung ab.'}</p>${restUsed&&!state.restDays?.includes(localDate())?'<small>Der Erholungstag dieser Woche ist bereits genutzt.</small>':''}${restAvailable?btn('Heute pausieren','rest-day','','text-button'):''}</div></section>`;
 }
 function todayPage() {
   const active=state.active.map(id=>byHobby[id]).filter(Boolean);
   const suggestion=recommend(state);
+  const quickQuest=shortQuest(state);
+  const paused=state.expedition.paused.map(id=>byHobby[id]).filter(Boolean);
   const recommended=active.length?suggestion?.quest:undefined;
   const suggested=suggestion?.hobby;
   const newSuggestion=recommended&&!state.active.includes(suggested.id);
@@ -167,7 +174,9 @@ function todayPage() {
     <p>${recommended?esc(suggested.name+' · '+questTime(recommended)+' · '+recommended.steps[0]):'Entdecke neue Hobbys, meistere echte Quests und sammle Erlebnisse.'}</p>
     ${newSuggestion?'<p>Aus deinen gemerkten Hobbys passt aktuell keine offene Quest zu deinen Einstellungen. Hier ist etwas Neues zum Ausprobieren.</p>':''}
     ${link(recommended?(newSuggestion?'Vorschlag ansehen':'Quest fortsetzen'):'Hobbys entdecken',heroLink,'button primary')}</div><div class="hero-place"><span>✦</span> ${recommended?'DEIN LERNPFAD':'ECHTE ERLEBNISSE'}</div></section>
-    <section class="bubble-row" aria-label="Schnellauswahl">${btn(svg('time')+' 10 Minuten','quick','time','pill')}${btn('⌂ &nbsp; Zu Hause','quick','home','pill')}${btn('✦ &nbsp; Etwas Neues','quick','new','pill')}</section>
+    ${quickQuest?`<section class="surface utility section expedition-panel"><h2>Heute 10 Minuten</h2><p>${esc(byHobby[quickQuest.hobby].name)} · ${esc(quickQuest.title)} · ${questTime(quickQuest)}</p>${link('Kurze Quest starten','quest/'+quickQuest.id,'button secondary')}</section>`:''}
+    ${paused.length?`<section class="surface utility section expedition-panel"><h2>Wenn du wieder einsteigen willst</h2><div class="actions">${paused.map(hobby=>link(esc(hobby.name),'pfad/'+hobby.id,'button secondary')).join('')}</div></section>`:''}
+    <section class="bubble-row" aria-label="Schnellauswahl">${btn(svg('time')+' Kurze Quests','quick','time','pill')}${btn('⌂ &nbsp; Zu Hause','quick','home','pill')}${btn('✦ &nbsp; Etwas Neues','quick','new','pill')}</section>
     <section class="section"><div class="section-title"><div><p class="eyebrow"><span>✦</span> HOBBY-KATALOG</p><h2>${active.length?'Deine Hobbys':'Was willst du heute machen?'}</h2></div>${link('Alle '+hobbies.length+' Hobbys','entdecken','text-button')}</div>
     <div class="hobby-grid">${(active.length?active.slice(0,3):featured.slice(0,3).map(id=>byHobby[id])).map(hobby=>pathCard(hobby,{image:true})).join('')}</div></section>
     <section class="section surface practice-promo"><div class="tile-icon lilac">⌘</div><div><h2>Teste dein Können direkt hier</h2><p>Programmiere deine erste Figur im Scratch-Blocklabor oder mache einen Wissenscheck in deinem Lernpfad.</p></div>${link('Blocklabor öffnen','labor','button secondary')}</section>
@@ -178,7 +187,7 @@ function filterSelect(name,label,options) {
   return `<label>${label}<select name="${name}"><option value="">Alle</option>${options.map(([value,word])=>`<option value="${value}" ${filter[name]===value?'selected':''}>${word}</option>`).join('')}</select></label>`;
 }
 function catalogResults() {
-  if(filter.time||filter.place||filter.gear||filter.stage) {
+  if(filter.time||filter.place||filter.gear||filter.stage||filter.cost) {
     const matches=hobbies.flatMap(hobby=>hobby.quests.filter(quest=>questMatches(hobby,quest,filter,state)).map(quest=>({hobby,quest})));
     return `<p class="result-count" role="status">${matches.length} direkt spielbare ${matches.length===1?'Quest':'Quests'}</p>
     ${matches.length?`<div class="hobby-grid catalog-grid">${matches.map(({hobby,quest})=>`<a class="hobby-card surface" href="#quest/${quest.id}"><div class="card-art ${hobby.group}"><span>${hobby.icon}</span></div><div class="card-content"><p class="eyebrow">${hobby.name}</p><h3>${quest.title}</h3><div class="card-meta"><span>${questTime(quest)}</span><span>${quest.elapsedDays?'Heute starten':quest.type}</span></div></div></a>`).join('')}</div>`:empty('Keine freigeschaltete Quest passt zu den Filtern und deiner gespeicherten Ausrüstung. Passe sie im Lernpfad an oder wähle ein anderes Hobby.') }`;
@@ -202,64 +211,193 @@ function moodPicker() {
   const result=pick?.choice;
   return `<section class="surface mood-picker" aria-label="Hobby nach Stimmung finden"><div><p class="eyebrow">DEINE KLEINE HOBBY-EXPEDITION</p><h2>Was würde sich gerade gut anfühlen?</h2><p>Wähle eine Stimmung und entdecke eine kurze, passende nächste Quest.</p></div>
   <div class="mood-options">${Object.entries(moods).map(([id,mood])=>btn(`<span aria-hidden="true">${mood.icon}</span> ${mood.label}`,'pick-mood',id,'pill')).join('')}</div>
-  ${pick?`<div class="mood-result" tabindex="-1" role="status" aria-live="polite">${result?`<span class="mood-result-icon" aria-hidden="true">${result.hobby.icon}</span><div><p class="eyebrow">${option?.label||'Dein Zufallstreffer'} · ${result.quest.minutes} Min.</p><h3>${esc(result.hobby.name)}: ${esc(result.quest.title)}</h3><p>${esc(result.quest.steps[0])}</p><p class="mood-materials"><strong>Ort:</strong> ${esc(result.hobby.place)} · <strong>Material:</strong> ${esc(result.quest.materials||result.hobby.materials)}</p><div class="actions">${link('Los geht’s','quest/'+result.quest.id,'button primary')}${btn('Noch eine Idee','pick-mood',pick.mood,'button secondary')}</div></div>`:`<div><strong>Diese Stimmung hast du schon gemeistert.</strong><p>Wähle eine andere Stimmung für eine neue Idee.</p></div>`}</div>`:''}</section>`;
+  ${pick?`<div class="mood-result" tabindex="-1" role="status" aria-live="polite">${result?`<span class="mood-result-icon" aria-hidden="true">${result.hobby.icon}</span><div><p class="eyebrow">${option?.label||'Dein Zufallstreffer'} · ${result.quest.minutes} Min.</p><h3>${esc(result.hobby.name)}: ${esc(result.quest.title)}</h3><p>Passt zu „${esc(option?.label||'Zufall')}“ und dauert ${result.quest.minutes} Minuten. ${esc(result.quest.steps[0])}</p><p class="mood-materials"><strong>Ort:</strong> ${esc(result.hobby.place)} · <strong>Material:</strong> ${esc(result.quest.materials||result.hobby.materials)}</p><div class="actions">${link('Los geht’s','quest/'+result.quest.id,'button primary')}${btn('Passt heute nicht','pick-mood',pick.mood,'button secondary')}</div></div>`:`<div><strong>Diese Stimmung hast du schon gemeistert.</strong><p>Wähle eine andere Stimmung für eine neue Idee.</p></div>`}</div>`:''}</section>`;
 }
 function discoverPage() {
   return `${titleBlock('ENTDECKEN','Finde dein nächstes Hobby.','Wähle etwas, das in deinen Tag passt. Jede Aktivität beginnt mit einer machbaren Quest.')}
-    ${moodPicker()}
+    ${worldMap()}
+    <details><summary>Quest nach Stimmung finden</summary>${moodPicker()}</details>
     <form id="filters" class="surface filters"><label class="search-label">Suche nach Hobby, Material oder Quest <span class="search-input">${svg('search')}<input type="search" name="query" value="${esc(filter.query)}" placeholder="Zum Beispiel Fotografie oder Papier"></span></label>
-    <div class="filters-grid">${filterSelect('time','Zeit',[['10','Bis 10 Min.'],['15','Bis 15 Min.'],['25','Bis 25 Min.']])}${filterSelect('place','Ort',['Zu Hause','Draußen','Drinnen'].map(x=>[x,x]))}${filterSelect('gear','Ausrüstung',['Ohne Ausrüstung','Alltagsmaterial','Mit Ausrüstung'].map(x=>[x,x]))}${filterSelect('stage','Quest-Typ',['Einstieg','Training','Meilenstein','Projekt','Erlebnis'].map(x=>[x,x]))}</div></form>
+    <div class="filters-grid">${filterSelect('time','Zeit',[['10','Bis 10 Min.'],['15','Bis 15 Min.'],['25','Bis 25 Min.']])}${filterSelect('place','Ort',['Zu Hause','Draußen','Drinnen'].map(x=>[x,x]))}${filterSelect('gear','Ausrüstung',['Ohne Ausrüstung','Alltagsmaterial','Mit Ausrüstung'].map(x=>[x,x]))}${filterSelect('cost','Kostenrahmen',['Ohne Anschaffung','Alltagsmaterial','Ausrüstung leihen oder kaufen'].map(x=>[x,x]))}${filterSelect('stage','Quest-Typ',['Einstieg','Training','Meilenstein','Projekt','Erlebnis'].map(x=>[x,x]))}</div></form>
     <div class="bubble-row category-row">${[['all','Alle'],...groups].map(([id,name])=>`<button class="pill" type="button" aria-pressed="${filter.group===id}" data-action="category" data-value="${id}">${name}</button>`).join('')}</div>
-    <section id="results" aria-label="Suchergebnisse">${catalogResults()}</section>`;
+    <section id="results" tabindex="-1" aria-label="Suchergebnisse">${catalogResults()}</section>`;
+}
+function studioLink(id) {
+  const studio=Object.hasOwn(practiceStudios,id)?practiceStudios[id]:null;
+  return studio?link(esc(studio.title),'praxis/'+id,'button secondary'):'';
+}
+function routeSteps(hobby,route,next) {
+  return `<ol class="expedition-route academy-path">${route.map(({stage,tasks,done,available,lead})=>{
+    const current=!done&&available.includes(next);
+    const locked=!done&&!available.length;
+    const status=done?'done':current?'current':locked?'locked':'available';
+    const content=expeditionContent(hobby,lead);
+    const options=tasks.map(quest=>`<li><strong>${esc(quest.title)}</strong><p>${questTime(quest)} · ${esc(quest.result)}</p>
+       ${unlocks(state,quest)?link(completed(state,quest.id)?'Erneut üben':'Quest öffnen','quest/'+quest.id,'button secondary'):''}</li>`).join('');
+    return `<li class="expedition-station ${status}" data-status="${status}">
+      <div class="stage-heading"><h3>Level ${stage} · ${stages[stage-1]}</h3><span>${done?'Erreicht':current?'Als Nächstes':locked?'Gesperrt':'Freigeschaltet'}</span></div>
+      <p>${esc(content.rationale)}</p>
+      ${locked?`<small>${esc(lead.title)} · ${questTime(lead)} · ${esc(lead.skill||lead.result)}</small>`:`<details ${current?'open':''}><summary>${tasks.length===1?'Quest ansehen':tasks.length+' Quests ansehen'}</summary><ul class="plain-list">${options}</ul></details>`}
+    </li>`;
+  }).join('')}</ol>`;
+}
+function companion(done) {
+  if(!done) return '';
+  const earned=[['✦','Wegfunke'],['◆','Spurenfinder'],['✺','Kompass'],['✶','Meisterstern']][done-1];
+  return `<p class="tags">${chip('<span aria-hidden="true">'+earned[0]+'</span> Wegbegleiter: '+earned[1])}</p>`;
 }
 function pathPage(id) {
   const hobby=byHobby[id];
   if(!hobby) return missing();
-  const lesson=lessons[id], next=nextQuest(state,hobby);
-  const active=state.active.includes(id);
-  const hits=hobby.quests.filter(quest=>completed(state,quest.id)).length;
-  const mastered=Object.hasOwn(state.practice,'quiz-'+id);
-  const skills=[...new Set(hobby.quests.map(quest=>quest.skill).filter(Boolean))];
-  return `<p>${link('Hobby-Katalog','entdecken','text-button')}</p><div class="path-banner surface ${hobby.group}"><span class="path-emoji">${hobby.icon}</span><div><p class="eyebrow">${groupNames[hobby.group]}</p><h1>${hobby.name}</h1><p>${hobby.skill} · Level ${level(state,hobby)}</p></div>${btn(active?'Aus meinen Hobbys entfernen':'Hobby merken','active',id,'button secondary')}</div>
-  <div class="academy-layout section">
-    <div>
-      <section class="surface mission hobby-intro"><h2>Worum geht’s bei diesem Hobby?</h2><p>${lesson.intro}</p><h3>So gelingt der Einstieg</h3><p>${lesson.technique}</p><div class="tags">${chip(hobby.place)}${chip(esc(hobby.gear))}${chip('Erste Quest: '+hobby.quests[0].minutes+' Min.')}</div>
-      <div class="actions intro-mobile-practice">${link('Wissenscheck','wissen/'+id,'button secondary')}${id==='scratch'?link('Blocklabor','labor','button secondary'):Object.hasOwn(studios,id)?link('Übungsstudio','studio/'+id,'button secondary'):''}${btn('Lernpfad drucken','print-path',id,'button secondary')}</div></section>
-      <section class="section" aria-label="Lernpfad"><div class="section-title"><div><h2>Dein Lernpfad</h2><p>${hits} von ${hobby.quests.length} Quests erledigt</p></div></div>
-      <ol class="academy-path">${stages.map((label,index)=>{
-        const station=hobby.quests.filter(quest=>quest.stage===index+1);
-        const cleared=station.some(quest=>completed(state,quest.id));
-        const unlocked=station.some(quest=>unlocks(state,quest));
-        const isNext=station.includes(next);
-        return `<li class="academy-stop ${cleared?'cleared':unlocked?'unlocked':'locked'}">
-          <span class="academy-node ${isNext?'next':''}" aria-hidden="true">${cleared?svg('check'):unlocked?index+1:svg('lock')}</span>
-          <div class="academy-body"><div class="stage-heading"><h3>${label}</h3><span>${cleared?'Erreicht':unlocked?(isNext?'Als Nächstes':'Freigeschaltet'):'Gesperrt'}</span></div>
-          <div class="station-options">${station.map(quest=>{
-            const done=completed(state,quest.id), open=unlocks(state,quest);
-            return `<article class="surface path-body"><p class="eyebrow">${questTime(quest)} · +${quest.xp} XP</p><h4>${quest.title}</h4><p>${quest.skill?quest.skill+" · ":""}${quest.result}</p>${!matchingGear(state,hobby,quest)?"<p><small>Benötigt Ausrüstung. Prüfe die Materialliste vor dem Start.</small></p>":""}
-            ${open?link(done?'Erneut üben':quest.stage===1?'Erste Quest starten':'Quest starten','quest/'+quest.id,'button '+(quest===next?'primary':'secondary')):`<small>${quest.any?'Schließe eine der Trainingsquests ab.':'Schließe die vorherige Etappe ab.'}</small>`}</article>`;
-          }).join('')}</div></div></li>`;
-      }).join('')}</ol></section>
-    </div>
-    <aside class="academy-sidebar">
-      <section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Direkt in der App üben</h2><p>Teste eine Grundregel dieses Hobbys. Beim ersten Bestehen bekommst du 20 XP.</p>${link(mastered?'Wissenscheck wiederholen':'Wissenscheck starten','wissen/'+id,'button primary')}
-        ${id==='scratch'?`<h3>Scratch-Blocklabor</h3><p>Drei interaktive Aufgaben zu Ereignissen, Bewegung und Punkten.</p>${link('Blocklabor öffnen','labor','button secondary')}`:''}
-        ${Object.hasOwn(studios,id)?`<h3>${studios[id].title}</h3><p>Probier die Technik direkt aus und hol dir Rückmeldung.</p>${link('Übungsstudio öffnen','studio/'+id,'button secondary')}`:''}</section>
-      <section class="surface utility"><h2>Was du brauchst</h2><p>${esc(hobby.materials)}</p><h3>Wenn du hängen bleibst</h3><p>${lesson.trouble}</p>${link('Lerncoach fragen','hilfe/'+id,'text-button')}${hobbyPreferences(hobby)}</section>
-      ${skills.length?`<section class="surface utility"><h2>Deine Fähigkeiten</h2><ul class="levels">${skills.map(skill=>{
-        const tasks=hobby.quests.filter(quest=>quest.skill===skill);
-        return `<li><span>${skill}</span><strong>${tasks.filter(quest=>completed(state,quest.id)).length} / ${tasks.length}</strong></li>`;
-      }).join('')}</ul></section>`:''}
-      ${resourceList(id)}
-    </aside>
-  </div>`;
+  const lesson=lessons[id], content=expeditionContent(hobby);
+  const route=routeSummary(state,hobby), next=expeditionNext(state,hobby);
+  const paused=state.expedition.paused.includes(id), active=state.active.includes(id);
+  const done=route.filter(station=>station.done).length;
+  const remaining=milestoneMinutes(state,hobby);
+  const review=reviewQuest(state,hobby);
+  const checked=state.expedition.materials[id]||[];
+  return `<p>${link('Zur Hobbywelt','entdecken','text-button')}</p>
+  <div class="path-banner surface ${hobby.group}"><span class="path-emoji" aria-hidden="true">${hobby.icon}</span><div><p class="eyebrow">${groupNames[hobby.group]}</p><h1>${hobby.name}</h1><p>${esc(content.appeal)}</p></div>${btn(active?'Aus meinen Hobbys entfernen':'Hobby merken','active',id,'button secondary')}</div>
+  <div class="academy-layout section"><div>
+    <section class="surface mission expedition-panel expedition-progress"><h2>${paused?'Dein Wiedereinstieg':next?'Dein nächster Schritt':'Expedition abgeschlossen'}</h2>
+      <p><strong>${done} von 4 Etappen erreicht</strong></p><progress aria-label="Erreichte Etappen" value="${done}" max="4">${done} von 4</progress>${companion(done)}
+      ${paused?'<p>Dein Fortschritt ist gespeichert. Steig mit einer vertrauten Übung wieder ein, wenn es passt.</p>':''}
+      ${next?`<h3>${esc(next.title)}</h3><p>${questTime(next)} · ${esc(next.result)}</p>`:'<p>Dein Meisterstück steht im privaten Projektbuch. Die Übungen kannst du jederzeit wiederholen.</p>'}
+      ${remaining?`<p><small>Ca. ${remaining} Min. aktive Übungszeit bis ${done<3?'zum Meilenstein':'zum Meisterstück'}. Pausen bei mehrtägigen Quests kommen dazu.</small></p>`:''}
+      <div class="actions expedition-actions">
+        ${next?link('Quest öffnen','quest/'+next.id,'button primary'):link('Projektgalerie','galerie','button primary')}
+        ${review||paused?link('Kurz wiederholen','quest/'+(review||hobby.quests[0]).id,'button secondary'):''}
+        ${active||paused?btn(paused?'Lernpfad fortsetzen':'Lernpfad pausieren','pause-path',id,'text-button'):''}
+      </div>
+    </section>
+    <section class="section" aria-label="Lernpfad"><h2>Dein Lernpfad</h2>${routeSteps(hobby,route,next)}</section>
+    <section class="surface mission section expedition-panel"><h2>Worum geht’s?</h2><p>${lesson.intro}</p><p>${lesson.technique}</p>
+      <p><strong>Sicher starten</strong><br>${esc(content.safety)}</p>
+      <details><summary>Einfach erklärt</summary><p>${esc(hobby.quests[0].steps[0])}</p><p>Dein erstes Ergebnis: ${esc(hobby.quests[0].result)}</p></details>
+      <details ${state.expedition.diagnostic[id]?'open':''}><summary>Kurze Einstiegsprobe</summary><p>${esc(content.diagnosis.task)}</p><p>${esc(content.diagnosis.criteria)}</p>
+      <form data-form="diagnostic" data-value="${id}"><label>Wie lief der Versuch? <select name="level"><option value="start" ${state.expedition.diagnostic[id]==='start'?'selected':''}>Mit Anleitung besser</option><option value="practice" ${state.expedition.diagnostic[id]==='practice'?'selected':''}>Selbstständig geschafft</option></select></label><button class="button secondary">Ergebnis merken</button></form>
+      ${state.expedition.diagnostic[id]?`<p>${esc(state.expedition.diagnostic[id]==='practice'?content.diagnosis.ready:content.diagnosis.novice)}</p>`:''}</details>
+      <div class="actions">${btn('Lernpfad drucken','print-path',id,'button secondary')}${btn('Offline-Karte laden','offline-card',next?.id||hobby.quests[0].id,'text-button')}${link('Wissenscheck','wissen/'+id,'button secondary')}${studioLink(id)}${Object.hasOwn(studios,id)?link('Übungsstudio öffnen','studio/'+id,'button secondary'):''}</div>
+    </section>
+  </div><aside class="academy-sidebar">
+    <section class="surface utility expedition-panel"><h2>Was du brauchst</h2><p>${esc(hobby.materials)}</p><fieldset><legend>Material abhaken</legend>${content.materials.map(({item,alternative},index)=>`<label><input type="checkbox" data-material="${id}" value="${index}" ${checked.includes(index)?'checked':''}> ${esc(item)}<small> ${esc(alternative)}</small></label>`).join('')}</fieldset><p>${esc(hobby.place)} · ${esc(budgetLabel(hobby.quests[0]))}</p></section>
+    <section class="surface utility expedition-panel"><h2>Dein Übungsplan</h2>${hobbyPreferences(hobby,content)}</section>
+    <section class="surface utility expedition-panel"><h2>Deine Fähigkeiten</h2>${skillList(skillHistory(state).filter(item=>item.quest.hobby===id))}${link('Alle Fähigkeiten','faehigkeiten','text-button')}</section>
+    ${resourceList(id)}
+  </aside></div>`;
 }
-function hobbyPreferences(hobby) {
+function hobbyPreferences(hobby,content=expeditionContent(hobby)) {
   const pref=state.preferences[hobby.id]||{};
+  const plan=state.expedition.plans[hobby.id]||{};
   const fields={experience:'Deine Vorerfahrung',gear:'Deine Ausrüstung',goal:'Dein Ziel'};
-  return `<details><summary>Empfehlungen für dieses Hobby anpassen</summary><form data-form="preferences" data-value="${hobby.id}">
+  return `<details ${state.expedition.plans[hobby.id]?'open':''}><summary>Übungsplan anpassen</summary><form data-form="preferences" data-value="${hobby.id}" class="expedition-form">
   ${Object.entries(preferences).map(([field,choices])=>`<label>${fields[field]}<select name="${field}">${choices.map(([value,label])=>`<option value="${value}" ${pref[field]===value?'selected':''}>${label}</option>`).join('')}</select></label>`).join('')}
-  <button class="button secondary">Für „Heute“ speichern</button></form></details>`;
+  <label>Zeit je Einheit<select name="minutes">${timeChoices.map(minutes=>`<option value="${minutes}" ${minutes===(plan.minutes||15)?'selected':''}>${minutes} Min.</option>`).join('')}</select></label>
+  ${content.routes.length?`<label>Schwerpunkt<select name="route">${content.routes.map(({label},index)=>`<option value="${index}" ${(plan.route||0)===index?'selected':''}>${esc(label)}</option>`).join('')}</select></label>`:''}
+  <label>Zieldatum für das Meisterstück <input type="date" name="deadline" value="${esc(plan.deadline)}"></label>
+  <label>Was muss ich dafür vorbereiten? <textarea name="preparation" maxlength="240">${esc(plan.preparation)}</textarea></label>
+  <button class="button secondary">Lernplan speichern</button></form></details>
+  ${content.routes[plan.route||0]?`<p><strong>${esc(content.routes[plan.route||0].label)}</strong><br>${esc(content.routes[plan.route||0].description)}</p>`:''}
+  ${plan.deadline?`<p>Meisterstück geplant für ${dateLabel(plan.deadline,{day:'numeric',month:'long',year:'numeric'})}.</p>`:''}
+  <p>${link('Lerncoach fragen','hilfe/'+hobby.id,'text-button')}</p>`;
+}
+function skillList(skills) {
+  return skills.length?`<ul class="plain-list expedition-skills">${skills.map(({skill,quest,day})=>`<li><a href="#quest/${quest.id}">${esc(skill)}</a><small>${esc(byHobby[quest.hobby].name)} · ${dateLabel(day)}</small></li>`).join('')}</ul>`:empty('Schließe eine Praxisquest ab. Die geübte Fähigkeit erscheint hier.');
+}
+function skillPage() {
+  const skills=skillHistory(state);
+  return `${titleBlock('DEIN PROFIL','Deine Fähigkeiten','Hier siehst du, was du praktisch geübt und festgehalten hast.')}
+  <section class="surface mission">${skillList(skills)}${link('Hobby auswählen','entdecken','button secondary')}</section>`;
+}
+function galleryPage() {
+  const cards=[...new Map(state.entries.filter(entry=>quests[entry.quest]?.stage===4).toReversed().map(entry=>[entry.quest,entry])).values()];
+  return `${titleBlock('DEIN PROFIL','Meisterstück-Galerie','Deine abgeschlossenen Projekte bleiben in diesem Browser, bis du eine Karte ausdrücklich teilst.')}
+  ${cards.length?`<div class="expedition-grid">${cards.map(entry=>{
+    const quest=quests[entry.quest];
+    return `<article class="surface utility expedition-project"><p>${byHobby[quest.hobby].icon} ${esc(byHobby[quest.hobby].name)}</p><h2>${esc(quest.title)}</h2><p>${esc(entry.result)}</p><p><small>${dateLabel(entry.day)}${entry.verified?' · Kriterien bestätigt':''}</small></p><div class="project-photo" data-photo="${esc(entry.id)}"></div>${btn('Projektkarte öffnen','card',entry.id,'button secondary')}</article>`;
+  }).join('')}</div>`:`${empty('Schließe ein Meisterstück ab, um hier dein erstes Projekt zu sehen.')}${link('Lernpfad wählen','entdecken','button primary')}`}`;
+}
+function journalPage() {
+  const notes=Object.entries(state.expedition.journal).sort((a,b)=>b[1].day.localeCompare(a[1].day));
+  return `${titleBlock('DEIN PROFIL','Hobbyjournal','Vergleiche deine Erwartung mit dem Ergebnis einer Übung. Deine Einträge bleiben privat.')}
+    ${notes.length?`<div class="expedition-grid">${notes.map(([id,note])=>`<article class="surface utility expedition-journal"><p>${dateLabel(note.day)} · ${esc(byHobby[quests[id].hobby].name)}</p><h2><a href="#quest/${id}">${esc(quests[id].title)}</a></h2>
+    ${note.before?`<p><strong>Vorher</strong><br>${esc(note.before)}</p>`:''}<div class="project-photo" data-photo="journal-${id}-before" data-photo-alt="Dein privates Vorher-Foto"></div>
+    ${note.after?`<p><strong>Nachher</strong><br>${esc(note.after)}</p>`:''}<div class="project-photo" data-photo="journal-${id}-after" data-photo-alt="Dein privates Nachher-Foto"></div></article>`).join('')}</div>`:`${empty('Öffne eine Quest und schreibe eine erste Notiz im privaten Hobbyjournal.')}${link('Quests entdecken','entdecken','button primary')}`}`;
+}
+function savedPage() {
+  const saved=state.expedition.favorites.map(id=>quests[id]).filter(Boolean);
+  return `${titleBlock('DEIN PROFIL','Für später','Quests, die du dir für eine spätere Übungsrunde gemerkt hast.')}
+  <section class="surface mission">${saved.length?`<ul class="plain-list">${saved.map(quest=>`<li><a href="#quest/${quest.id}">${esc(quest.title)}</a><small>${questTime(quest)} · ${unlocks(state,quest)?'Freigeschaltet':'Gesperrt'}</small></li>`).join('')}</ul>`:empty('Öffne eine Quest und wähle „Für später merken“.')}${link('Quests entdecken','entdecken','button secondary')}</section>`;
+}
+function questLearning(quest,hobby) {
+  const content=expeditionContent(hobby,quest);
+  const note=state.expedition.journal[quest.id]||{};
+  const plan=state.expedition.plans[hobby.id];
+  const variant=content.variants;
+  return `<h2>Wofür du das übst</h2><p>${esc(content.rationale)}</p><p>${esc(content.next)}</p>
+    ${plan&&quest.minutes>plan.minutes?`<p class="notice">Für deine ${plan.minutes} Minuten heute: ${esc(variant.short)}</p>`:''}
+    <details><summary>Einfach erklärt</summary><p>${esc(quest.steps[0])}</p><p>Vergleiche am Schluss mit diesem Ziel: ${esc(quest.result)}</p></details>
+    <details><summary>Beispiel und häufiger Fehler</summary><p><strong>So sieht ein gutes Ergebnis aus</strong><br>${esc(content.example.good)}</p><p><strong>${esc(content.example.mistake)}</strong><br>${esc(content.example.repair)}</p></details>
+    <details><summary>Zugängliche Varianten</summary>
+      <ul><li><strong>Lesen statt hören</strong> · Schritte stehen als Text bereit. Bei Sprechübungen kannst du zunächst Satzkarten lesen und Situationen zuordnen.</li>
+      <li><strong>Hören statt lesen</strong> · Nutze die Sprachausgabe deines Geräts oder bitte jemanden, die Schritte vorzulesen. Bei visuellen Aufgaben kann eine Person das Ergebnis anhand der Kriterien beschreiben.</li>
+      <li><strong>Weniger Bewegung</strong> · Bereite die Übung am Tisch vor, zum Beispiel mit einer Skizze oder einer Materialliste. Lass den praktischen Teil offen, bis eine passende Ausführung möglich ist.</li>
+      <li><strong>Weniger auf einmal</strong> · Hak einen Schritt im Fokusmodus ab und pausiere den Timer bei Bedarf.</li></ul>
+    </details>
+    <details><summary>Übung anpassen</summary><dl><dt>Ohne Spezialmaterial</dt><dd>${esc(variant.noGear)}</dd><dt>Kleines Budget</dt><dd>${esc(variant.budget)}</dd><dt>Wenig Zeit</dt><dd>${esc(variant.short)}</dd><dt>Anderer Ort</dt><dd>${esc(variant.place)}</dd></dl></details>
+    ${quest.stage===4?`<details open class="expedition-project"><summary>So prüfst du dein Meisterstück</summary><ul>${content.rubric.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></details>`:''}
+    <details class="expedition-journal" ${note.before||note.after?'open':''}><summary>Privates Hobbyjournal${note.before||note.after?' · Eintrag vorhanden':''}</summary>
+      <form data-form="journal" data-value="${quest.id}" class="expedition-form">
+        <label>Vorher: Was willst du heute ausprobieren? <textarea name="before" maxlength="300">${esc(note.before)}</textarea></label>
+        <label>Nachher: ${esc(content.reflection)} <textarea name="after" maxlength="300">${esc(note.after)}</textarea></label>
+        <details><summary>Vorher- und Nachher-Fotos hinzufügen</summary><p>Fotos bleiben in diesem Browser und werden beim Profilexport ausgelassen. Ergänze eine kurze Notiz dazu.</p>
+          <label>Vorher-Foto <input name="before-photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+          <label>Nachher-Foto <input name="after-photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+          <label><input name="remove-journal-photos" type="checkbox"> Gespeicherte Vergleichsfotos entfernen</label>
+        </details>
+        <button class="button secondary">Journal speichern</button>
+      </form>
+    </details>`;
+}
+function worldMap() {
+  const seasonIndex=Math.floor((new Date().getMonth()+1)%12/3);
+  const season=seasons[seasonIndex];
+  return `<section aria-label="Hobbywelt" class="section"><h2>Hobbywelt</h2>
+    <div class="expedition-world">${groups.map(([id,name,icon])=>{
+      const region=hobbies.filter(hobby=>hobby.group===id);
+      const started=region.filter(hobby=>state.active.includes(hobby.id)).length;
+      return `<button type="button" class="expedition-region surface ${id}" aria-pressed="${filter.group===id}" data-action="category" data-value="${id}"><span aria-hidden="true">${icon}</span><strong>${name}</strong><small>${region.length} Pfade${started?' · '+started+' gemerkt':''}</small></button>`;
+    }).join('')}</div>
+    <details><summary>Saisonpfade · ${season.label}</summary><div class="actions">${[season,...seasons.filter(item=>item!==season)].map(item=>link(item.label,'saison/'+seasons.indexOf(item),'button secondary')).join('')}</div></details>
+  </section>`;
+}
+function seasonPage(id) {
+  const season=seasons[Number(id)];
+  if(!season) return missing();
+  return `${titleBlock('HOBBYWELT',season.label,'Diese Lernpfade kannst du zu jeder Jahreszeit öffnen.')}
+    <div class="actions">${seasons.map((item,index)=>link(item.label,'saison/'+index,'button secondary')).join('')}</div>
+    <div class="hobby-grid section">${season.groups.flatMap(group=>hobbies.filter(hobby=>hobby.group===group).slice(0,3)).map(hobby=>pathCard(hobby)).join('')}</div>`;
+}
+function expeditionWeek() {
+  const week=monday();
+  const selected=state.expedition.weeks[week]||[];
+  const doneThisWeek=new Set(state.entries.filter(entry=>entry.week===week).map(entry=>entry.quest));
+  const weekHits=selected.filter(id=>doneThisWeek.has(id)).length;
+  const candidates=new Map();
+  for(const id of selected) if(quests[id]) candidates.set(id,quests[id]);
+  for(const hobby of [...state.active.map(id=>byHobby[id]).filter(Boolean),...featured.map(id=>byHobby[id])]) {
+    if(state.expedition.paused.includes(hobby.id)) continue;
+    const next=expeditionNext(state,hobby);
+    if(next&&candidates.size<12) candidates.set(next.id,next);
+  }
+  const selection=[...candidates.values()];
+  return `<section class="surface utility section expedition-panel"><h2>Deine Wochenexpedition</h2><p>Wähle bis zu drei Etappen, die du diese Woche üben willst.</p>
+    ${selection.length?`<form data-form="expedition-week" class="expedition-form"><fieldset><legend>Etappen auswählen</legend>${selection.map(quest=>`<label><input type="checkbox" name="quest" value="${quest.id}" ${selected.includes(quest.id)?'checked':''}> ${esc(byHobby[quest.hobby].name)} · ${esc(quest.title)}${completed(state,quest.id)?' · erledigt':''}</label>`).join('')}</fieldset><button class="button secondary">Auswahl speichern</button></form>`:link('Lernpfad wählen','entdecken','button secondary')}
+    ${selected.length?`<p><strong>${weekHits} von ${selected.length} diese Woche geübt</strong></p><ul class="plain-list">${selected.map(id=>`<li><a href="#quest/${id}">${esc(quests[id].title)}</a></li>`).join('')}</ul>`:''}
+    <h3>Diese Woche geübt</h3>${skillList(skillHistory(state,week))}
+    <h3>Letzte Woche geübt</h3>${skillList(skillHistory(state,shift(week,-7)))}
+    ${selection.find(quest=>!completed(state,quest.id))?link('Nächste Übung öffnen','quest/'+selection.find(quest=>!completed(state,quest.id)).id,'button primary'):''}
+  </section>`;
 }
 function resourceList(id,stage) {
   const hobby=byHobby[id];
@@ -268,7 +406,10 @@ function resourceList(id,stage) {
   const choices=levels.map(level=>({level,...resourcesForStage(hobby,level)}));
   const items=choices.flatMap(choice=>choice.items);
   const searches=choices.filter(choice=>choice.videoUrl).map(({level,quest,videoUrl})=>`<li><div><small>${stages[level-1]} · noch kein Video geprüft</small><a href="${videoUrl}" target="_blank" rel="noopener noreferrer">Passende YouTube-Videos suchen</a><p>Suchbegriff: ${esc(hobby.name+' · '+quest.title+' · Schritt für Schritt')}</p></div></li>`).join('');
-  return `<section class="surface utility resource-list"><h2>Videos & Anleitungen</h2>${items.length?'<p>Ausgewählte Quellen:</p>':''}<ul class="plain-list">${items.map(([level,name,source,url])=>`<li><div><small>${stages[level-1]} · ${source}</small><a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a></div></li>`).join('')}${searches}</ul><p class="resource-note">Suchtreffer stammen von YouTube und werden nicht von Hobbymaxing geprüft. Geprüfte Links sind als ausgewählte Quelle gekennzeichnet.</p></section>`;
+  return `<section class="surface utility resource-list"><h2>Videos & Anleitungen</h2>${items.length?'<p>Externe Quellen</p>':''}<ul class="plain-list">${items.map(([level,name,source,url])=>{
+    const review=reviewedResources[url];
+    return `<li><div><small>${stages[level-1]} · ${esc(source)}</small><a href="${url}" target="_blank" rel="noopener noreferrer">${esc(name)}</a>${review?`<p>${esc(review[2])}<br><small>${esc(review.slice(0,2).join(' · '))} · geprüft am ${dateLabel(resourcesReviewedOn,{day:'numeric',month:'long',year:'numeric'})}</small></p>`:'<small>Übernommener Link · aktuell ungeprüft</small>'}</div></li>`;
+  }).join('')}${searches}</ul><p class="resource-note">Für geprüfte Quellen siehst du Lernziel und Prüfdatum. YouTube-Suchvorschläge sind ungeprüft.</p></section>`;
 }
 function questPage(id, inviteCode='') {
   const quest=quests[id];
@@ -283,9 +424,11 @@ function questPage(id, inviteCode='') {
   ${planned?`<div class="notice">Gemeinsame Quest für ${dateLabel(planned.day).replace(/\.$/,'')}. ${friendFinished(state,planned)?'Die andere Person hat sie schon abgeschlossen.':''}</div>`:''}
   ${preparation?`<p class="notice">Du bereitest dich auf „${quests[preparation.quest].title}“ vor. ${link('Zur Einladung','quest/'+preparation.quest+'/'+preparation.code,'text-button')}</p>`:''}
   <div class="detail-grid"><section class="surface mission">
-    ${questInformation(quest,hobby)}
+    ${locked?'':questInformation(quest,hobby)}
+    ${!locked&&quest.stage?questLearning(quest,hobby):''}
+    <div class="actions expedition-actions">${quest.stage?btn(state.expedition.favorites.includes(id)?'Von „Für später“ entfernen':'Für später merken','favorite',id,'button secondary'):''}${btn('Quest drucken','print-path',id,'button secondary')}${locked?'':btn('Offline-Karte laden','offline-card',id,'text-button')}${studioLink(hobby.id)}</div>
     ${locked?`<div class="notice">Schließe zuerst „${prerequisite?.title||'den Einstieg'}“ ab. ${prerequisite?link('Voraussetzung starten','quest/'+prerequisite.id+(planned?'/'+planned.code:''),'button primary'):link('Zum Lernpfad','pfad/'+hobby.id,'text-button')}</div>`:
-      `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:preparation?'~~'+preparation.code:''),'button primary')} ${btn('Quest im Fokusmodus starten','focus-open',id,'button secondary')} ${btn('Einplanen','plan',id,'button secondary')} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
+      `${btn('Ergebnis eintragen','finish',id+(planned?'~'+planned.code:preparation?'~~'+preparation.code:''),'button primary')} ${btn('Quest im Fokusmodus starten','focus-open',id,'button secondary')} ${btn('Einplanen','plan',id,'button secondary')} ${quest.stage?btn('Für Wochenexpedition wählen','choose-expedition',id,'text-button'):''} ${btn('Gemeinsam machen','invite',id,'text-button') }`}
   </section><aside class="academy-sidebar"><section class="surface utility"><div class="tile-icon lilac">✦</div><h2>Dein Ergebnis</h2><p>${quest.result}</p><h3>So passt du es an</h3><p>${quest.adapt}</p><h3>Danach</h3><p>${quest.stage===4?'Halte fest, was du jetzt selbstständig kannst und was du beim nächsten Versuch ändern würdest.':'Schließe die Übung ab und wähle die nächste verfügbare Quest im Lernpfad.'}</p>${btn('Quest-Link kopieren','copy-quest',quest.id,'text-button')} ${link('Lerncoach zu dieser Quest fragen','hilfe/'+hobby.id+'/'+quest.id,'text-button')}</section>${resourceList(hobby.id,quest.stage)}</aside></div>`;
 }
 function focusPage(id) {
@@ -307,7 +450,7 @@ function focusPage(id) {
     ${Object.hasOwn(studios,hobby.id)?`<div class="notice"><strong>${esc(studios[hobby.id].title)}</strong><p>${esc(studios[hobby.id].task)}</p>${link('Übungsstudio öffnen','studio/'+hobby.id,'button secondary')}</div>`:''}
     <h2>Deine Schritte</h2><p class="step-count" id="step-progress" aria-live="polite">${checks.length} / ${quest.steps.length} Schritte abgehakt</p>
     <ol class="steps guided-steps focus-steps">${quest.steps.map((step,index)=>`<li><label><input type="checkbox" data-quest-step="${quest.id}" value="${index}" ${checks.includes(index)?'checked':''}><span>${esc(/[.!?]$/.test(step)?step:step+'.')}</span></label>${quest.guided?.[index]?.tip||starterGuides[quest.id]?.tips[index]?`<details><summary>Wenn du einen Hinweis brauchst</summary><p>${quest.guided?.[index]?.tip||starterGuides[quest.id]?.tips[index]}</p>${(quest.guided?.[index]?.issues||[]).map(([problem,fix])=>`<p><strong>${esc(problem)}</strong><br>${esc(fix)}</p>`).join('')}</details>`:''}</li>`).join('')}</ol>
-    ${resourceList(hobby.id,quest.stage)}<div class="notice"><strong>Erfolg heißt:</strong> ${esc(starterGuides[quest.id]?.success||quest.result)}</div><div class="actions">${btn('Ergebnis festhalten','finish',id,'button primary')}${link('Lerncoach fragen','hilfe/'+hobby.id+'/'+id,'button secondary')}</div><p class="focus-privacy">Timer und Fortschritt bleiben in diesem Browser. Der Timer läuft nur in diesem Tab.</p></section>`;
+    ${quest.stage===4?questLearning(quest,hobby):''}${resourceList(hobby.id,quest.stage)}<div class="notice"><strong>Erfolg heißt:</strong> ${esc(starterGuides[quest.id]?.success||quest.result)}</div><div class="actions">${btn('Ergebnis festhalten','finish',id,'button primary')}${link('Lerncoach fragen','hilfe/'+hobby.id+'/'+id,'button secondary')}</div><p class="focus-privacy">Timer und Fortschritt bleiben in diesem Browser. Der Timer läuft nur in diesem Tab.</p></section>`;
 }
 function phraseCards() {
   const selected=languages[language];
@@ -415,6 +558,7 @@ function supportPage(id,questId) {
   return `${titleBlock('HILFE & SUPPORT',hobby?'Lerncoach für '+hobby.name:'Wie können wir dir helfen?','Frage den Lerncoach zu deinem Hobby, einer Aufgabe oder deinem Spielfortschritt.')}
   <div class="detail-grid"><section class="surface mission coach-panel"><div class="section-title"><div><h2>Lerncoach</h2><p>Antworten aus den Hobby-Anleitungen und Spielregeln. Deine Fragen bleiben in diesem Tab.</p></div></div>
   ${focusQuest?`<p class="notice">Aktuelle Quest: ${focusQuest.title}</p>`:''}
+  ${hobby&&!state.expedition.plans[hobby.id]?`<h3>Was passt zu dir?</h3><p>Hinterlege Übungszeit, Material und Ziel für persönliche Vorschläge.</p>${hobbyPreferences(hobby)}`:''}
   <form data-form="coach" data-quest="${focusQuest?.id||''}">
     <label>Hobby<select name="hobby"><option value="">Allgemeine Hilfe</option>${hobbies.map(item=>`<option value="${item.id}" ${item===hobby?'selected':''}>${item.name}</option>`).join('')}</select></label>
     <div class="actions coach-suggestions">${(focusQuest?['Tipp für Schritt 1','Tipp für Schritt 2','Tipp für Schritt 3']:starters).map(prompt=>btn(esc(prompt),'coach-prompt',prompt,'pill')).join('')}</div>
@@ -455,6 +599,7 @@ function challengeIndex() {
     <div class="actions">${link('Mitmachen','challenge/'+highlight.id,'button primary')}${btn('An Freunde schicken','copy-quest',highlight.id,'button secondary')}${link('Alle Ranglisten','ranglisten','text-button')}</div></section>
     <div class="hobby-grid catalog-grid">${challenges.map(quest=>`<a class="hobby-card surface" href="#challenge/${quest.id}"><div class="card-art ${quest.group}"><span>${quest.icon}</span></div><div class="card-content">
     <p class="eyebrow">${quest.max?'RANGLISTE':'ERGEBNISLISTE'}</p><h3>${quest.title}</h3><p>${quest.result}</p><div class="card-meta"><span>${quest.minutes} Min.</span><span>+${quest.xp} XP</span></div></div></a>`).join('')}</div>
+    ${onlineRooms?`<section class="section surface utility"><h2>Private Wochenräume</h2><p>Übt als Duo oder Team. Über den Einladungslink seht ihr freigegebene Praxistage für eine Woche.</p><div class="actions">${btn('Buddy-Ziel starten','create-room','buddy-week','button secondary')}${btn('Team-Raum starten','create-room','team-week','button secondary')}</div></section>`:''}
     <section class="section"><h2>Gemeinsame Quests</h2>${invitesList()}</section>`;
 }
 function challengePage(id) {
@@ -468,6 +613,21 @@ function challengePage(id) {
   <aside class="surface utility"><div class="tile-icon lilac">${svg('trophy')}</div><h2>${ranking?'Deine private Rangliste':'Deine private Ergebnisliste'}</h2><p>${ranking?'Gleiche Bedingungen für alle. Pro Person zählt das beste Ergebnis dieser Woche.':'Hier sammelst du Titel und importierte Beiträge aus dieser Woche. Eigene Fotos bleiben privat im Projektbuch.'}</p>
   ${rankingRows(rows,quest,{actions:true})}${btn('Ergebnislink importieren','import','','button secondary')} ${btn('Challenge-Link kopieren','copy-quest',id,'text-button')} ${ranking?link('Zeiträume und Bestwerte','ranglisten','text-button'):''}</aside></div>`;
 }
+function roomRows(room) {
+  const quest=quests[room.quest];
+  if(quest) return rankingRows(room.rows,quest);
+  return room.rows.length?`<ol class="plain-list">${room.rows.map(row=>`<li><span>${esc(row.name)}${row.mine?' · du':''}</span><strong>${row.score} / 7 Tage</strong></li>`).join('')}</ol>`:empty('Trage deinen ersten Praxisstand ein oder sende den Raumlink an deine Gruppe.');
+}
+function activityRoomPage(room) {
+  const own=room.rows.find(row=>row.mine);
+  const buddy=room.quest==='buddy-week';
+  const total=room.rows.reduce((sum,row)=>sum+row.score,0);
+  const week=monday(localDate(new Date(room.expires-7*86400000)));
+  return `${titleBlock('PRIVATER WOCHENRAUM',buddy?'Buddy-Wochenziel':'Team-Challenge','Praxis zählt pro Person und Tag einmal. Jede Person kann ihren eigenen Beitrag aktualisieren.')}
+  <div class="detail-grid"><section class="surface mission"><h2>Dein Beitrag</h2><p>Du teilst ausschließlich die Anzahl deiner Praxistage in der Woche ${weekRange(week)}. Der Raum verwendet automatisch einen neutralen Namen.</p>
+  <form data-form="room-activity" data-value="${room.id}"><label>Praxistage der Woche <input name="score" type="number" required min="0" max="7" value="${own?.score??activeDays(state,week).size}"></label><button class="button primary">Beitrag freigeben</button></form>
+  </section><section class="surface utility"><h2>${buddy?'Euer Fortschritt':'Beiträge nach Teilnahme'}</h2><p id="room-total">${total} Praxistage gemeinsam</p><div id="room-results">${roomRows(room)}</div><p>Bis zu ${buddy?'zwei':'zwanzig'} Personen · verfügbar bis ${dateLabel(localDate(new Date(room.expires)))}</p>${btn('Einladungslink kopieren','copy-room',room.id,'button secondary')}</section></div>`;
+}
 function roomPage(id) {
   if(!/^[A-Za-z0-9_-]{24}$/.test(id||'')) return missing();
   if(!roomSupported()) return titleBlock('PRIVATER RAUM','Dieser Raum braucht die Serverversion.','Öffne den ursprünglichen Einladungslink auf dem Server, auf dem der Raum erstellt wurde.');
@@ -475,6 +635,7 @@ function roomPage(id) {
   if(room?.error) return titleBlock('PRIVATER RAUM','Raum konnte nicht geöffnet werden.',esc(room.error))+btn('Erneut versuchen','refresh-room',id,'button secondary');
   if(!room) return titleBlock('PRIVATER RAUM','Raum wird geladen …','Wir holen die gemeinsame Ergebnisliste.');
   const quest=quests[room.quest];
+  if(!quest) return activityRoomPage(room);
   const own=room.rows.find(row=>row.mine);
   return `${titleBlock('PRIVATER RAUM',quest.title,'Personen mit dem Einladungslink können die Ergebnisliste sehen und eigene Werte eintragen.')}
   <div class="detail-grid"><section class="surface mission"><h2>Ein Ergebnis eintragen</h2><p>Verwende einen Spitznamen. Raumwerte werden als Selbstauskunft gespeichert und ersetzen deine vorherige Wertung für diesen Raum.</p>
@@ -491,8 +652,11 @@ async function refreshRoom(id) {
     if(location.hash!=='#'+route) return;
     const list=main.querySelector('#room-results');
     currentRoom={id,...data};
-    if(list) list.innerHTML=rankingRows(data.rows,quests[data.quest]);
-    else render();
+    if(list) {
+      list.innerHTML=roomRows(currentRoom);
+      const total=main.querySelector('#room-total');
+      if(total) total.textContent=data.rows.reduce((sum,row)=>sum+row.score,0)+' Praxistage gemeinsam';
+    } else render();
   } catch(error) {
     if(location.hash!=='#'+route) return;
     if(main.querySelector('#room-results')) return;
@@ -516,11 +680,42 @@ function weekPage() {
   return `${titleBlock('DEINE WOCHE','Mach Platz für Erlebnisse.','Plane einzelne Quests oder kombiniere Hobbys in einem Wochenvorhaben.')}
     <div class="detail-grid"><section class="surface mission"><h2>Geplante Quests</h2>${upcoming.length?`<ul class="plain-list">${upcoming.map(item=>`<li><div><a href="#quest/${item.quest}">${quests[item.quest].title}</a><p>${dateLabel(item.day)}${item.done?' · erledigt':''}</p></div><div class="actions">${item.done?'':btn('Verschieben','reschedule',item.id,'text-button')}${btn('Entfernen','remove-plan',item.id,'text-button')}</div></li>`).join('')}</ul>`:empty('Noch nichts geplant. Du kannst jede freigeschaltete Quest einplanen.') }${link('Quest finden','entdecken','button secondary')}</section>
     <aside>${weekCard()}<section class="surface utility goal"><h2>Wochenziel</h2><p>Änderungen gelten ab Montag der nächsten Woche.</p><form data-form="goal"><label>Aktive Tage pro Woche<input name="goal" type="number" min="1" max="7" required value="${horizon}"></label><button class="button secondary">Ziel speichern</button></form></section></aside></div>
+    ${expeditionWeek()}
     <section class="section"><h2>Wochenvorhaben</h2><div class="hobby-grid">${journeys.map(journey=>{
       const started=state.journeys.includes(journey.id);
       const hits=journey.quests.filter(id=>completed(state,id)).length;
       return `<article class="surface utility"><div class="tile-icon lilac">${journey.icon}</div><h3>${journey.title}</h3><p>${journey.text}</p>${started?`<p><strong>${hits} / ${journey.quests.length} erledigt</strong></p><ul>${journey.quests.map(id=>`<li><a href="#quest/${id}">${quests[id].title}</a> ${completed(state,id)?'✓':''}</li>`).join('')}</ul>`:btn('Vorhaben starten','journey',journey.id,'button secondary')}</article>`;
     }).join('')}</div></section>`;
+}
+function sharesPage(id) {
+  if(!roomSupported()) return titleBlock('FREIGABEN','Für Freigaben wird die Serverversion benötigt.','Öffne den ursprünglichen Link auf dem Hobbymaxing-Server.');
+  const current=sharesView?.id===id?sharesView:null;
+  if(current?.error) return titleBlock('FREIGABEN','Link konnte nicht geladen werden.',esc(current.error));
+  if(!current) return titleBlock('FREIGABEN','Wird geladen …','');
+  if(id) {
+    const {kind,stations,projects,days,quest}=current;
+    return kind==='project'?titleBlock('GETEILTE PROJEKTKARTE',esc(quests[quest].title),'Erfolgreich abgeschlossen · Selbstauskunft')+link('Lernpfad ansehen','pfad/'+quests[quest].hobby,'button secondary'):
+    titleBlock('GETEILTER FORTSCHRITT','Hobbymaxing-Fortschritt','Anonym freigegebener Stand zum Zeitpunkt der Erstellung.')+
+    `<ul class="plain-list surface utility"><li>${stations} abgeschlossene Etappen</li><li>${projects} abgeschlossene Meisterstücke</li><li>${days} Praxistage in der damaligen Woche</li></ul>`;
+  }
+  return `${titleBlock('DEIN PROFIL','Geteilte Links','Widerrufe einen Link, um den Zugriff auf seinen Inhalt zu beenden. Links laufen nach 30 Tagen ab.')}
+    <section class="surface utility">${btn('Fortschrittsseite freigeben','prepare-share','progress','button primary')}
+    ${current.shares.length?`<ul class="plain-list">${current.shares.map(({code,kind,expires})=>`<li><div>${link(kind==='project'?'Projektkarte':'Fortschrittsseite','freigaben/'+code,'text-button')}<small>Bis ${dateLabel(localDate(new Date(expires)))}</small></div>${btn('Link widerrufen','revoke-share',code,'button secondary')}</li>`).join('')}</ul>`:empty('Du hast keine aktiven Freigaben.')}</section>`;
+}
+async function refreshShares(id) {
+  if(!roomSupported()) return;
+  const route='#freigaben'+(id?'/'+id:'');
+  try {
+    if(id&&!/^[A-Za-z0-9_-]{24}$/.test(id)) throw Error('Dieser Link ist ungültig.');
+    const token=id?'':knownRoomToken();
+    const data=id||token?await callRoom('/shares'+(id?'/'+id:''),{token}):{shares:[]};
+    if(location.hash!==route) return;
+    sharesView={id,...data};
+  } catch(error) {
+    if(location.hash!==route) return;
+    sharesView={id,error:error.message};
+  }
+  render();
 }
 function profilePage() {
   const {running,best}=streaks(state);
@@ -532,15 +727,20 @@ function profilePage() {
     if(!bests.has(id)||bests.get(id).score<entry.score) bests.set(id,entry);
   }
   return `${titleBlock('DEIN PROFIL',state.name?'Hi, '+esc(state.name)+'.':'Dein Projektbuch.','Hier findest du die Quests, Projekte und persönlichen Bestleistungen, die du gesammelt hast.')}
+    <div class="actions expedition-actions">${link('Meisterstück-Galerie','galerie','button secondary')}${link('Fähigkeiten','faehigkeiten','button secondary')}${link('Für später','gespeichert','button secondary')}${link('Hobbyjournal','journal','button secondary')}${onlineRooms?link('Freigaben verwalten','freigaben','button secondary'):''}</div>
     <div class="stat-grid"><div class="surface stat"><span>${svg('bolt')} Erfahrung</span><strong>${totalXp(state)} XP</strong></div><div class="surface stat"><span>${svg('flame')} Tagesstreak</span><strong>${daily.running} T.</strong><small>Bestwert: ${daily.best} ${daily.best===1?'Tag':'Tage'}</small></div><div class="surface stat"><span>✦ Aktuelle Wochenserie</span><strong>${running} Wo.</strong></div><div class="surface stat"><span>${svg('trophy')} Beste Wochenserie</span><strong>${best} Wo.</strong></div></div>
-    <div class="detail-grid section"><section class="surface mission"><h2>Projektbuch</h2>${state.entries.length?`<ul class="plain-list timeline">${state.entries.map(entry=>`<li><div><small>${dateLabel(entry.day)} · ${quests[entry.quest].type}</small><h3><a href="#quest/${entry.quest}">${quests[entry.quest].title}</a></h3><p>${entry.score==null?'':entry.score+' · '}${esc(entry.result)}</p>${entry.note?`<p>${esc(entry.note)}</p>`:''}${entry.quest==='challenge-foto'?`<div class="project-photo" data-photo="${esc(entry.id)}"></div>`:''}</div>${btn('Erfolgskarte','card',entry.id,'text-button')}</li>`).join('')}</ul>`:empty('Schließe deine erste Quest ab. Dann taucht sie hier auf.') }
+    <div class="detail-grid section"><section class="surface mission"><h2>Projektbuch</h2>${state.entries.length?`<ul class="plain-list timeline">${state.entries.map(entry=>`<li><div><small>${dateLabel(entry.day)} · ${quests[entry.quest].type}</small><h3><a href="#quest/${entry.quest}">${quests[entry.quest].title}</a></h3><p>${entry.score==null?'':entry.score+' · '}${esc(entry.result)}</p>${entry.note?`<p>${esc(entry.note)}</p>`:''}${(entry.quest==='challenge-foto'||quests[entry.quest].stage===4)?`<div class="project-photo" data-photo="${esc(entry.id)}"></div>`:''}</div>${btn('Erfolgskarte','card',entry.id,'text-button')}</li>`).join('')}</ul>`:empty('Schließe deine erste Quest ab. Dann taucht sie hier auf.') }
     <h2>Abgeschlossene Wochenvorhaben</h2>${state.journeys.map(id=>journeys.find(journey=>journey.id===id)).filter(journey=>journey.quests.every(id=>completed(state,id))).map(journey=>`<p>${journey.icon} ${journey.title}</p>`).join('')||empty('Deine fertigen Wochenvorhaben erscheinen hier.')}</section>
     <aside class="surface utility"><h2>Deine Hobbys</h2>${state.active.length?`<ul class="levels">${state.active.map(id=>`<li><a href="#pfad/${id}">${byHobby[id].icon} ${byHobby[id].name}</a><strong>Level ${level(state,byHobby[id])}</strong></li>`).join('')}</ul>`:empty('Noch keine Hobbys gemerkt.')}
     <h2>Abzeichen</h2><ul class="badges">${badges(state).map(([icon,label,has])=>`<li class="${has?'earned':''}"><span>${icon}</span><span>${label}</span><small>${has?'Erhalten':'Offen'}</small></li>`).join('')}</ul>
     <h2>Bestleistungen</h2>${bests.size?`<ul class="levels">${[...bests.values()].map(entry=>`<li><span>${quests[entry.quest].title}<small>${entry.condition==='standard'?'Standardregeln':esc(entry.condition)}</small></span><strong>${entry.score}</strong></li>`).join('')}</ul>`:empty('Messbare Ergebnisse werden nach Bedingungen und Quest-Version verglichen.') }</aside></div>
     <section class="surface utility section narrow"><h2>Profileinstellungen</h2><p>Dein Fortschritt liegt in diesem Browser. Wenn du eine Erfolgskarte teilst, enthält sie deinen gewählten Anzeigenamen und das Ergebnis. Deine private Notiz bleibt hier.</p><form data-form="profile"><label>Anzeigename <input name="name" maxlength="28" value="${esc(state.name)}" placeholder="Optional"></label><button class="button secondary">Speichern</button></form>
     <h2>Fortschritt sichern</h2><p>Die Sicherung enthält Ergebnisse und Notizen, Termine, Wochenvorhaben, Einladungen, importierte Ranglistenwerte, Einstellungen und Entwürfe. Fotos bleiben auf diesem Gerät.</p>
-    <div class="actions">${btn('Fortschritt herunterladen','backup','','button secondary')}${btn('Sicherung importieren','restore','','button secondary')}</div></section>`;
+    <div class="actions">${btn('Fortschritt herunterladen','backup','','button secondary')}${btn('Sicherung importieren','restore','','button secondary')}${btn('Browserdaten löschen','delete-profile','','text-button')}</div>
+    <h2>Darstellung</h2><form class="expedition-form" data-form="reading"><label>Lesemodus<select name="reading">${readingChoices.map(([value,label])=>`<option value="${value}" ${state.expedition.reading===value?'selected':''}>${label}</option>`).join('')}</select></label>
+    <label><input type="checkbox" name="motion" ${state.expedition.reducedMotion?'checked':''}> Bewegung und Effekte reduzieren</label><button class="button secondary">Darstellung speichern</button></form>
+    <h2>Übungserinnerung</h2><p>Die Erinnerung erscheint nur, wenn Hobbymaxing geöffnet ist. Du kannst sie hier jederzeit ausschalten.</p>
+    <form data-form="reminder"><label>Rhythmus<select name="days">${[[0,'Pausiert'],[1,'Einmal täglich'],[7,'Einmal pro Woche']].map(([days,label])=>`<option value="${days}" ${state.expedition.reminder.days===days?'selected':''}>${label}</option>`).join('')}</select></label><button class="button secondary">Rhythmus speichern</button></form></section>`;
 }
 const sources=[
   ['University of Minnesota Extension','4-H-Projektübersicht für die Bandbreite des Katalogs','https://extension.umn.edu/4-h-and-youth/minnesota-4-h/4-h-member-resources/4-h-projects'],
@@ -566,15 +766,37 @@ function sharedPage(code) {
     <section class="surface mission narrow"><div class="tile-icon lilac">✦</div><h2>${data.score!==null?data.score+' · ':''}${esc(data.result)}</h2><p>Selbst eingetragenes Ergebnis · Woche ${weekRange(data.week)}</p>
     ${quest.type==='Challenge'?btn('Zur Rangliste oder Ergebnisliste hinzufügen','accept-score',code,'button primary'):''} ${link('Quest ausprobieren','quest/'+data.quest,'button secondary')}</section>`;
 }
+function checkReminder() {
+  const today=localDate();
+  const {days,last}=state.expedition.reminder;
+  if(!days||shift(last,days)>today||document.hidden) return;
+  if(save(latest=>{
+    const next=latest.expedition.reminder;
+    if(!next.days||shift(next.last,next.days)>today) return false;
+    next.last=today;
+  },{refresh:false})) alertUser('Zeit für eine kleine Übung? Auf „Heute“ findest du deine nächste Quest.');
+}
 function render() {
+  const {reading,reducedMotion}=state.expedition;
+  document.documentElement.dataset.reading=reading;
+  document.documentElement.dataset.motion=reducedMotion||reading==='text'?'reduced':'auto';
   const [page,id,param]=(location.hash==='#main'?'heute':location.hash.slice(1)).split('/');
-  const selected=({pfad:'entdecken',quest:'entdecken',fokus:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',challenge:'challenges',ranglisten:'challenges',raum:'challenges',woche:'heute'})[page]||page||'heute';
+  const selected=({pfad:'entdecken',quest:'entdecken',fokus:'entdecken',wissen:'entdecken',labor:'entdecken',studio:'entdecken',praxis:'entdecken',saison:'entdecken',faehigkeiten:'profil',galerie:'profil',gespeichert:'profil',journal:'profil',freigaben:'profil',challenge:'challenges',ranglisten:'challenges',raum:'challenges',woche:'heute'})[page]||page||'heute';
   nav.innerHTML=navigation.map(([route,label,icon])=>`<a href="#${route}" ${route===selected?'aria-current="page"':''}>${svg(icon)}<span>${label}</span></a>`).join('');
   const dark=document.documentElement.dataset.theme==='dark';
   top.innerHTML=`<div class="top-left"><span class="mobile-mark mark">✳</span><div><p>${new Intl.DateTimeFormat('de-DE',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</p><strong>${state.name?'Hi, '+esc(state.name):'Willkommen bei Hobbymaxing'}</strong></div></div><div class="top-stats"><button class="button secondary theme-toggle" type="button" data-action="toggle-theme" aria-pressed="${dark}" aria-label="${dark?'Helles':'Dunkles'} Design aktivieren">${dark?'☀ Helles Design':'☾ Dunkles Design'}</button><a class="xp-chip" href="#profil">${svg('bolt')} <strong>${totalXp(state)} XP</strong></a><a class="avatar" href="#profil" aria-label="Profil">${state.name?esc(Array.from(state.name)[0].toLocaleUpperCase('de')):svg('user')}</a></div>`;
-  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,fokus:focusPage,wissen:quizPage,labor:labPage,studio:studioPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
+  const views={heute:todayPage,entdecken:discoverPage,pfad:pathPage,quest:questPage,fokus:focusPage,wissen:quizPage,labor:labPage,studio:studioPage,praxis:id=>practiceStudioPage(id)||missing(),saison:seasonPage,faehigkeiten:skillPage,galerie:galleryPage,gespeichert:savedPage,journal:journalPage,freigaben:sharesPage,hilfe:supportPage,challenges:challengeIndex,challenge:challengePage,ranglisten:rankingPage,raum:roomPage,woche:weekPage,profil:profilePage,quellen:sourcesPage,teilen:sharedPage};
+  unmountPracticeStudio();
   main.innerHTML=(Object.hasOwn(views,page||'heute')?views[page||'heute']:missing)(id,param);
-  if(page==='profil') showPhotos(main);
+  if(page==='praxis') mountPracticeStudio(main,id,{
+    read:studio=>state.practiceDrafts[studio],
+    write:(studio,data)=>save(latest=>{
+      const draft=sanitizePracticeDraft(studio,data);
+      if(draft==null) return false;
+      latest.practiceDrafts[studio]=draft;
+    },{refresh:false})
+  });
+  if(page==='profil'||page==='galerie'||page==='journal') showPhotos(main);
   startFocusTicker(page);
 }
 document.querySelector('.skip').addEventListener('click',event=>{
@@ -583,9 +805,10 @@ document.querySelector('.skip').addEventListener('click',event=>{
   main.scrollIntoView({block:'start'});
 });
 function openModal(title,contents) {
-  modal.innerHTML=`<div class="modal-header"><h2 id="dialog-title">${title}</h2>${btn('Schließen','close','','text-button')}</div>${contents}`;
+  modal.innerHTML=`<div class="modal-header"><h2 id="dialog-title" tabindex="-1">${title}</h2>${btn('Schließen','close','','text-button')}</div>${contents}`;
   modal.setAttribute('aria-labelledby','dialog-title');
   if(!modal.open) modal.showModal();
+  else modal.querySelector('h2')?.focus();
 }
 const modalForm=(name,id,contents,label)=>`<form data-form="${name}" data-value="${esc(id)}">${contents}<button class="button primary" type="submit">${label}</button></form>`;
 function finishDialog(id,entry) {
@@ -597,11 +820,13 @@ function finishDialog(id,entry) {
     `<label>${quest.result}<input name="result" required maxlength="160" placeholder="Dein Ergebnis in einem Satz" value="${esc(entry?.result)}"></label>`;
   const condition=quest.max&&quest.type!=='Challenge'?`<label>Vergleichsbedingungen<input name="condition" required maxlength="100" placeholder="z. B. 3 m, linker Fuß, gleiches Ziel" value="${esc(entry?.condition)}"></label>`:'';
   const prior=state.entries.some(entry=>entry.quest===questId&&(quest.type!=='Challenge'||entry.week===monday()));
-  openModal(entry?'Ergebnis korrigieren':'Quest abschließen',modalForm(entry?'edit-entry':'finish',entry?.id||id,
-    `<p>${quest.title} · ${prior?'Wiederholung':'+'+quest.xp+' XP'}</p>${result}${condition}
+  const rubric=quest.stage===4&&!entry?expeditionContent(byHobby[quest.hobby],quest).rubric:[];
+  const checks=rubric.length?`<fieldset><legend>Prüfe dein Meisterstück</legend>${rubric.map((criterion,index)=>`<label><input type="checkbox" name="criterion" value="${index}" required> ${esc(criterion)}</label>`).join('')}</fieldset>`:'';
+  openModal(entry?'Ergebnis korrigieren':quest.stage===4?'Meisterstück abschließen':'Quest abschließen',modalForm(entry?'edit-entry':'finish',entry?.id||id,
+    `<p>${quest.title} · ${prior?'Wiederholung':'+'+quest.xp+' XP'}</p>${checks}${result}${condition}
       ${entry||quest.type==='Challenge'?'':`<label>Wie sicher fühlst du dich?<select name="confidence"><option value="">Noch offen</option><option value="retry">Ich möchte die Technik noch einmal üben</option><option value="ready">Ich bin bereit für den nächsten Schritt</option></select></label>`}
       <label>Private Notiz <textarea name="note" maxlength="420" placeholder="Was hat gut geklappt?">${esc(entry?.note)}</textarea></label>
-      ${quest.id==='challenge-foto'?'<label>Privates Foto für dein Projektbuch (optional)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"></label>':''}
+      ${(quest.id==='challenge-foto'||quest.stage===4)?'<label>Privates Foto für dein Projektbuch (optional)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp"></label>':''}
       <p id="result-error" role="alert" hidden></p>
       ${invite?'<p class="notice">Der Abschluss zählt auch für eure gemeinsame Quest.</p>':''}`,'Ergebnis speichern'));
 }
@@ -613,17 +838,19 @@ function cardDialog(entry,{recent=false,returnInvite=''}={}) {
   const options=advanced.length?advanced:[nextQuest(state,hobby)].filter(Boolean);
   const retry=entry.confidence==='retry';
   const wasBest=entry.score!==null&&(entry.best===null||entry.score>entry.best);
-  openModal('Deine Erfolgskarte',`<div class="success-card ${hobby.group}"><div class="tile-icon">${hobby.icon}</div><p class="eyebrow">${esc(hobby.name)} · ${entry.xp?('+'+entry.xp+' XP'):'Wiederholung'}</p><h3>${quest.title}</h3><p>${entry.score===null?'':entry.score+' · '}${esc(entry.result||quest.result)}</p>
+  openModal(quest.stage===4?'Meisterstück abgeschlossen':'Deine Erfolgskarte',`<div class="success-card ${hobby.group}"><div class="tile-icon">${hobby.icon}</div><p class="eyebrow">${esc(hobby.name)} · ${entry.xp?('+'+entry.xp+' XP'):'Wiederholung'}</p><h3>${quest.title}</h3><p>${entry.score===null?'':entry.score+' · '}${esc(entry.result||quest.result)}</p>
   ${entry.previous!==null?`<p>Letzter vergleichbarer Versuch: ${entry.previous}</p>`:''}${wasBest?'<p><strong>Persönliche Bestleistung</strong></p>':''}</div>
+  ${quest.stage===4?`<p>${entry.verified?'Du hast alle Projektkriterien bestätigt. ':''}${link('Zur privaten Meisterstück-Galerie','galerie','button primary')}</p>`:''}
   <p>${retry?'Wiederhole die Übung und achte auf eine einzige Änderung. In „Heute“ kann sie als Nächstes erscheinen.':resultFeedback(quest)}</p>
   <div class="actions">${retry?link('Übung wiederholen','quest/'+quest.id,'button primary'):''}${options.map((item,index)=>link(item.title,'quest/'+item.id,'button '+(!retry&&index===0?'primary':'secondary'))).join('')}
   ${returnInvite?`<p>${link('Zur gemeinsamen Quest','quest/'+quests[state.invites.find(invite=>invite.code===returnInvite).quest].id+'/'+returnInvite,'button primary')}</p>`:''}
-  <div class="actions">${btn(quest.type==='Challenge'?'Ergebnislink für Freunde kopieren':'Erfolgskarten-Link kopieren','share',entry.id,'button secondary')}${btn('Ergebnis korrigieren','edit-entry',entry.id,'text-button')}${recent?btn('Abschluss rückgängig','undo-entry',entry.id,'text-button'):''}</div>`);
+  <div class="actions">${onlineRooms&&quest.stage===4?btn('Widerrufbare Projektkarte teilen','prepare-share',quest.id,'button secondary'):''}${btn(quest.type==='Challenge'?'Ergebnislink für Freunde kopieren':'Erfolgskarten-Link kopieren','share',entry.id,'button secondary')}${btn('Ergebnis korrigieren','edit-entry',entry.id,'text-button')}${recent?btn('Abschluss rückgängig','undo-entry',entry.id,'text-button'):''}</div>`);
 }
 function resultFeedback(quest) {
   const guide=starterGuides[quest.id];
   return guide?'Selbstcheck: '+esc(guide.success):'Vergleiche dein Ergebnis mit dem Ziel der Quest. Du kannst jederzeit den nächsten Schritt wählen.';
 }
+modal.addEventListener('close',()=>{pendingBackup=null;});
 function resultValues(data,invite='') {
   const raw=data.get('score');
   return {score:typeof raw==='string'&&raw.trim()?Number(raw):NaN,condition:data.get('condition'),note:data.get('note'),result:data.get('result'),confidence:data.get('confidence'),invite};
@@ -633,6 +860,14 @@ function resultError(form,message) {
   note.textContent=message;
   note.hidden=false;
   form.querySelector('[name="result"],[name="score"]')?.focus();
+}
+function download(contents,type,name) {
+  const url=URL.createObjectURL(new Blob([contents],{type}));
+  const file=document.createElement('a');
+  file.href=url;
+  file.download=name;
+  file.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function saveDraft(kind,id,draft) {
   return save(latest=>{latest[kind][id]=[...draft];},{refresh:false});
@@ -665,17 +900,69 @@ document.addEventListener('click',async event=>{
   if(!action) return;
   const {action:kind,value}=action.dataset;
   switch(kind) {
+    case 'choose-expedition': {
+      if(!quests[value]?.stage||!unlocks(state,quests[value])) break;
+      const week=monday();
+      if(save(latest=>{
+        const selection=latest.expedition.weeks[week]??=[];
+        if(selection.includes(value)||selection.length>=3) return false;
+        selection.push(value);
+      },{refresh:false})) alertUser('Quest für diese Wochenexpedition gewählt.');
+      else alertUser('Die Quest ist schon gewählt oder die drei Plätze sind belegt. Du kannst deine Auswahl unter „Woche planen“ ändern.');
+      break;
+    }
+    case 'favorite':
+      if(quests[value]?.stage&&save(latest=>{
+        const favorites=new Set(latest.expedition.favorites);
+        if(favorites.has(value)) favorites.delete(value);
+        else favorites.add(value);
+        latest.expedition.favorites=[...favorites];
+      },{refresh:false})) {
+        const saved=state.expedition.favorites.includes(value);
+        action.textContent=saved?'Von „Für später“ entfernen':'Für später merken';
+        alertUser(saved?'Quest für später gemerkt.':'Quest aus „Für später“ entfernt.');
+      }
+      break;
+    case 'pause-path':
+      if(byHobby[value]&&save(latest=>{
+        const paused=new Set(latest.expedition.paused);
+        if(paused.has(value)) paused.delete(value);
+        else paused.add(value);
+        latest.expedition.paused=[...paused];
+      })) {
+        main.querySelector('[data-action="pause-path"]')?.focus();
+        alertUser(state.expedition.paused.includes(value)?'Lernpfad pausiert.':'Lernpfad fortgesetzt.');
+      }
+      break;
+    case 'delete-profile':
+      openModal('Lokales Profil löschen?',modalForm('delete-profile','',`<p>Damit löschst du den Fortschritt, das Journal, gespeicherte Studioentwürfe und private Fotos dieses Browsers. Zuvor heruntergeladene Sicherungen und bereits geteilte Links bestehen weiter.</p><label><input type="checkbox" required> Ich möchte meine lokalen Profil- und Fotodaten löschen.</label>`,'Profil endgültig löschen'));
+      break;
+    case 'apply-backup': {
+      if(!pendingBackup) break;
+      let counts;
+      if(save(latest=>{counts=mergeBackup(latest,pendingBackup);},{refresh:false})) {
+        pendingBackup=null;
+        language=state.language;
+        labDrafts=structuredClone(state.labDrafts);
+        studioDrafts=structuredClone(state.studioDrafts);
+        render();
+        openModal('Sicherung übernommen',`<p>${counts.added} Ergebnisse, Termine, Einladungen oder Ranglistenwerte hinzugefügt oder aktualisiert. ${counts.skipped} doppelte oder ungültige Einträge übersprungen.</p><p>Hobbys, Journal, Einstellungen, Studioentwürfe und Wochenvorhaben wurden zusammengeführt.</p>`);
+      }
+      break;
+    }
     case 'toggle-theme': {
       const dark=document.documentElement.dataset.theme!=='dark';
       document.documentElement.dataset.theme=dark?'dark':'light';
-      localStorage.setItem('hobbymaxing-theme',dark?'dark':'light');
+      try { localStorage.setItem('hobbymaxing-theme',dark?'dark':'light'); }
+      catch { alertUser('Der Browser konnte die Einstellung nicht speichern.'); }
       render();
+      top.querySelector('.theme-toggle')?.focus();
       break;
     }
     case 'close': modal.close(); break;
     case 'pick-mood': {
       const options=moodQuests(state,value);
-      const available=options.filter(item=>item.quest.id!==discoveryPick?.choice?.quest.id);
+      const available=options.filter(item=>item.quest.id!==discoveryPick?.choice?.quest.id&&!state.expedition.paused.includes(item.hobby.id));
       const pool=available.length?available:options;
       discoveryPick={mood:value,choice:pool.length?pool[Math.floor(Math.random()*pool.length)]:null};
       render();
@@ -702,6 +989,24 @@ document.addEventListener('click',async event=>{
       startFocusTicker('fokus');
       break;
     }
+    case 'prepare-share': {
+      const quest=quests[value];
+      if(!onlineRooms||(value!=='progress'&&(quest?.stage!==4||!completed(state,value)))) break;
+      openModal('Link freigeben?',modalForm('publish-share',value,`<p>${quest?'Die Karte zeigt den Projekttitel und den Abschluss.':'Die Seite zeigt nur die Anzahl abgeschlossener Etappen und Projekte sowie deiner Praxistage in dieser Woche.'} Personen mit dem Link können diese Angaben abrufen. Der Link lässt sich im Profil widerrufen.</p><label><input type="checkbox" required> Ich stimme der Freigabe dieser Angaben zu.</label>`,'Link erstellen'));
+      break;
+    }
+    case 'copy-snapshot':
+      copy(urlFor('freigaben/'+value));
+      break;
+    case 'revoke-share':
+      action.disabled=true;
+      try {
+        await callRoom('/shares/'+value,{method:'DELETE',token:knownRoomToken()});
+        await refreshShares();
+        main.querySelector('[data-action="prepare-share"]')?.focus();
+        alertUser('Link widerrufen.');
+      } catch(error) {alertUser(error.message);action.disabled=false;}
+      break;
     case 'create-room':
       action.disabled=true;
       try {
@@ -760,15 +1065,28 @@ document.addEventListener('click',async event=>{
       speechSynthesis.speak(utterance);
       break;
     }
-    case 'backup': {
-      const url=URL.createObjectURL(new Blob([profileBackup(state)],{type:'application/json'}));
-      const file=document.createElement('a');
-      file.href=url;
-      file.download='hobbymaxing-fortschritt-'+localDate()+'.json';
-      file.click();
-      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    case 'offline-card': {
+      const quest=quests[value];
+      if(!quest||!unlocks(state,quest)) break;
+      const hobby=byHobby[quest.hobby], content=expeditionContent(hobby,quest);
+      const card=[
+        hobby.name+' · '+quest.title,
+        questTime(quest)+' · '+quest.place,
+        'Material: '+(quest.materials||hobby.materials),
+        'Sicherheit: '+content.safety,
+        '',
+        ...quest.steps.map((step,index)=>(index+1)+'. '+step),
+        '',
+        'Ergebnis: '+quest.result,
+        'Kurze Variante: '+content.variants.short,
+        ...content.rubric.map(item=>'[ ] '+item)
+      ].join('\n');
+      download(card,'text/plain;charset=utf-8',quest.id+'.txt');
       break;
     }
+    case 'backup':
+      download(profileBackup(state),'application/json','hobbymaxing-fortschritt-'+localDate()+'.json');
+      break;
     case 'restore':
       openModal('Fortschritt übernehmen',modalForm('restore','',`<p>Vorhandener Fortschritt bleibt erhalten. Wähle eine von Hobbymaxing exportierte Sicherungsdatei.</p><label>Sicherungsdatei<input name="backup" type="file" accept=".json,application/json" required></label>`,'Sicherung übernehmen'));
       break;
@@ -845,20 +1163,25 @@ document.addEventListener('click',async event=>{
       break;
     }
     case 'quick':
-      filter={group:'all',query:'',place:value==='home'?'Zu Hause':'',gear:'',time:value==='time'?'10':'',stage:value==='new'?'Einstieg':''};
+      filter={group:'all',query:'',place:value==='home'?'Zu Hause':'',gear:'',time:value==='time'?'10':'',stage:value==='new'?'Einstieg':'',cost:''};
       location.hash='entdecken';
       break;
     case 'category':
       filter.group=value;
-      document.querySelectorAll('[data-action="category"]').forEach(button=>button.setAttribute('aria-pressed',String(button===action)));
+      document.querySelectorAll('[data-action="category"]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.value===value)));
       document.querySelector('#results').innerHTML=catalogResults();
+      if(action.classList.contains('expedition-region')) document.querySelector('#results').focus();
       break;
     case 'active':
       save(latest=>{latest.active=latest.active.includes(value)?latest.active.filter(id=>id!==value):[...latest.active,value];});
       break;
-    case 'print-path':
-      window.print();
+    case 'print-path': {
+      const closed=[...main.querySelectorAll('details:not([open]):not(.expedition-journal):not(:has(form))')];
+      for(const detail of closed) detail.open=true;
+      try { window.print(); }
+      finally { for(const detail of closed) detail.open=false; }
       break;
+    }
     case 'rest-day':
       if(save(latest=>takeRestDay(latest))) alertUser('Erholungstag genutzt. Deine Tagesstreak bleibt erhalten.');
       else alertUser('Ein Erholungstag ist nur einmal pro Woche während einer aktiven Serie möglich.');
@@ -922,16 +1245,40 @@ document.addEventListener('submit',async event=>{
   const values=new FormData(form);
   const id=form.dataset.value;
   switch(form.dataset.form) {
-    case 'room-score': {
+    case 'publish-share': {
+      if(!onlineRooms) break;
+      const quest=quests[id];
+      if(id!=='progress'&&(quest?.stage!==4||!completed(state,id))) break;
+      const routes=hobbies.map(hobby=>routeSummary(state,hobby));
+      const body=quest?{kind:'project',quest:quest.id}:{
+        kind:'progress',
+        stations:routes.flat().filter(station=>station.done).length,
+        projects:routes.filter(route=>route[3].done).length,
+        days:activeDays(state,monday()).size
+      };
+      const submit=form.querySelector('button[type="submit"]');
+      submit.disabled=true;
+      try {
+        const data=await callRoom('/shares',{method:'POST',token:roomToken(),body});
+        if(!form.isConnected) return;
+        openModal('Dein Freigabelink',`<p>${link('Freigabeseite öffnen','freigaben/'+data.code,'text-button')}</p><div class="actions">${btn('Link kopieren','copy-snapshot',data.code,'button primary')}${link('Freigaben verwalten','freigaben','button secondary')}</div>`);
+      } catch(error) {alertUser(error.message);}
+      finally {submit.disabled=false;}
+      break;
+    }
+    case 'room-score':
+    case 'room-activity': {
       if(roomWriting) break;
-      const name=values.get('name').trim(), score=Number(values.get('score'));
-      if(!name) {alertUser('Gib einen Spitznamen ein.');break;}
+      const name=values.get('name')?.trim(), score=Number(values.get('score'));
+      if(form.dataset.form==='room-score'&&!name) {alertUser('Gib einen Spitznamen ein.');break;}
       roomWriting=true;
       try {
         const data=await callRoom('/'+id,{method:'PUT',token:roomToken(),body:{name,score}});
         if(location.hash==='#raum/'+id) {
           currentRoom={id,...data};
-          main.querySelector('#room-results').innerHTML=rankingRows(data.rows,quests[data.quest]);
+          main.querySelector('#room-results').innerHTML=roomRows(currentRoom);
+          const total=main.querySelector('#room-total');
+          if(total) total.textContent=data.rows.reduce((sum,row)=>sum+row.score,0)+' Praxistage gemeinsam';
           alertUser('In der gemeinsamen Rangliste gespeichert.');
         }
       } catch(error) {alertUser(error.message);}
@@ -978,6 +1325,12 @@ document.addEventListener('submit',async event=>{
       const quest=quests[editing?state.entries.find(item=>item.id===id)?.quest:questId];
       if(!quest) return;
       const result=resultValues(values,invite);
+      if(!editing&&quest.stage===4) {
+        const rubric=expeditionContent(byHobby[quest.hobby],quest).rubric;
+        const checked=new Set(values.getAll('criterion'));
+        if(!rubric.every((_,index)=>checked.has(String(index)))) {resultError(form,'Bestätige die Projektkriterien, sobald du sie geprüft hast.');break;}
+        result.verified=true;
+      }
       if(!validResult(quest,result)) {resultError(form,quest.max?'Gib einen gültigen Wert und gegebenenfalls Vergleichsbedingungen ein.':'Beschreibe kurz dein Ergebnis. Leerzeichen allein reichen nicht.');return;}
       let photo;
       const file=values.get('photo');
@@ -1006,26 +1359,113 @@ document.addEventListener('submit',async event=>{
     case 'profile':
       if(save(latest=>{latest.name=values.get('name').trim().slice(0,28);})) alertUser('Profil gespeichert.');
       break;
+    case 'journal': {
+      if(!quests[id]?.stage||!unlocks(state,quests[id])) break;
+      const before=values.get('before').trim(), after=values.get('after').trim();
+      const files=['before','after'].map(side=>({side,file:values.get(side+'-photo')}));
+      if(files.some(({file})=>file?.size)&&!before&&!after) {alertUser('Ergänze eine kurze Notiz zu deinen Fotos.');break;}
+      const submit=form.querySelector('button[type="submit"]');
+      submit.disabled=true;
+      let pictures;
+      try {
+        pictures=await Promise.all(files.map(async ({side,file})=>({side,photo:file?.size?await preparePhoto(file):null})));
+      } catch(error) {alertUser(error.message);submit.disabled=false;break;}
+      if(!form.isConnected) break;
+      if(save(latest=>{
+        if(before||after) latest.expedition.journal[id]={day:localDate(),before,after};
+        else delete latest.expedition.journal[id];
+      })) {
+        main.querySelector('.expedition-journal summary')?.focus();
+        try {
+          await Promise.all(pictures.map(({side,photo})=>{
+            const key='journal-'+id+'-'+side;
+            if(photo) return putPhoto(key,photo);
+            if(values.has('remove-journal-photos')||!before&&!after) return deletePhoto(key);
+          }));
+          alertUser('Journal aktualisiert.');
+        } catch {alertUser('Die Notiz ist gespeichert. Die Fotos konnten nicht vollständig aktualisiert werden.');}
+      }
+      submit.disabled=false;
+      break;
+    }
+    case 'reminder': {
+      const days=Number(values.get('days'));
+      if(save(latest=>{latest.expedition.reminder={days:[1,7].includes(days)?days:0,last:localDate()};})) {
+        main.querySelector('[data-form="reminder"] select')?.focus();
+        alertUser(days?'Übungserinnerung aktiv.':'Übungserinnerung pausiert.');
+      }
+      break;
+    }
+    case 'reading':
+      if(save(latest=>{
+        latest.expedition.reading=readingChoices.some(([id])=>id===values.get('reading'))?values.get('reading'):'standard';
+        latest.expedition.reducedMotion=values.has('motion');
+      })) {main.querySelector('[name="reading"]')?.focus();alertUser('Darstellung gespeichert.');}
+      break;
+    case 'diagnostic': {
+      if(!byHobby[id]) break;
+      const assessment=values.get('level')==='practice'?'practice':'start';
+      if(save(latest=>{
+        latest.expedition.diagnostic[id]=assessment;
+        const pref=latest.preferences[id]||{};
+        latest.preferences[id]={gear:'any',goal:'try',...pref,experience:assessment};
+      })) {main.querySelector('[name="level"]')?.focus();alertUser('Einstiegsprobe gespeichert.');}
+      break;
+    }
+    case 'expedition-week': {
+      const chosen=[...new Set(values.getAll('quest'))];
+      if(chosen.length>3) {alertUser('Wähle höchstens drei Etappen aus.');break;}
+      if(save(latest=>{latest.expedition.weeks[monday()]=chosen.filter(id=>quests[id]?.stage&&unlocks(latest,quests[id]));})) {
+        main.querySelector('[data-form="expedition-week"] button')?.focus();
+        alertUser('Wochenexpedition gespeichert.');
+      }
+      break;
+    }
     case 'preferences':
       if(!byHobby[id]) break;
       if(save(latest=>{
         latest.preferences[id]=Object.fromEntries(Object.entries(preferences).map(([field,choices])=>[field,choices.some(([value])=>value===values.get(field))?values.get(field):choices[0][0]]));
+        const minutes=Number(values.get('minutes')), route=Number(values.get('route')), deadline=values.get('deadline');
+        latest.expedition.plans[id]={
+          minutes:timeChoices.includes(minutes)?minutes:15,
+          route:expeditionContent(byHobby[id]).routes[route]?route:0,
+          deadline:validDay(deadline)?deadline:'',
+          preparation:values.get('preparation').trim().slice(0,240)
+        };
         if(!latest.active.includes(id)) latest.active.push(id);
-      })) alertUser('Empfehlungen gespeichert.');
+      })) {main.querySelector('[name="minutes"]')?.focus();alertUser('Übungsplan gespeichert.');}
       break;
     case 'restore': {
+      pendingBackup=null;
       const file=values.get('backup');
       if(!file||file.size>1000000) {alertUser('Die Sicherungsdatei ist ungültig oder zu groß.'); break;}
       let profile;
       try { profile=parseBackup(await file.text()); } catch { /* Invalid file. */ }
       if(!profile) {alertUser('Diese Datei ist keine gültige Hobbymaxing-Sicherung.'); break;}
-      let counts;
-      if(save(latest=>{counts=mergeBackup(latest,profile);},{refresh:false})) {
+      pendingBackup=profile;
+      openModal('Sicherung prüfen',`<ul><li>${profile.active.length} gemerkte Hobbys</li><li>${profile.entries.length} Quest-Ergebnisse</li><li>${Object.keys(profile.expedition.journal).length} Journaleinträge</li><li>${profile.plans.length} Termine</li></ul><p>Die Daten werden mit deinem Profil zusammengeführt. Lokale Fotos sind in der Sicherung nicht enthalten.</p>${btn('Import bestätigen','apply-backup','','button primary')}`);
+      break;
+    }
+    case 'delete-profile': {
+      form.querySelector('button[type="submit"]').disabled=true;
+      try {
+        await clearPhotos();
+        localStorage.removeItem(key);
+        state=load(localStorage);
         language=state.language;
-        labDrafts=structuredClone(state.labDrafts);
-        studioDrafts=structuredClone(state.studioDrafts);
+        labDrafts={};
+        studioDrafts={};
+        focusTimer=null;
+        storeFocusTimer();
+        pendingBackup=null;
+        coachHistory=[];
+        modal.close();
         render();
-        openModal('Sicherung übernommen',`<p>${counts.added} Ergebnisse, Termine, Einladungen oder Ranglistenwerte hinzugefügt oder aktualisiert. ${counts.skipped} doppelte oder nicht zum Profil passende Einträge übersprungen.</p><p>Hobbys, Einstellungen, Entwürfe, Übungstage und Wochenvorhaben wurden zusammengeführt. Lokale Fotos werden separat im Browser gespeichert.</p>`);
+        main.focus();
+        alertUser('Dein lokales Profil und deine privaten Fotos wurden gelöscht.');
+      } catch {
+        form.querySelector('button[type="submit"]').disabled=false;
+        alertUser('Die Browserdaten konnten nicht vollständig gelöscht werden. Versuche es erneut.');
       }
       break;
     }
@@ -1083,6 +1523,17 @@ document.addEventListener('input',event=>{
 });
 document.addEventListener('change',event=>{
   const control=event.target;
+  if(control.dataset.material) {
+    const id=control.dataset.material, index=Number(control.value);
+    if(!byHobby[id]||!expeditionContent(byHobby[id]).materials[index]) return;
+    if(!save(latest=>{
+      const checks=new Set(latest.expedition.materials[id]||[]);
+      if(control.checked) checks.add(index);
+      else checks.delete(index);
+      latest.expedition.materials[id]=[...checks];
+    },{refresh:false})) control.checked=!control.checked;
+    return;
+  }
   if(control.id==='practice-language') {
     const value=control.value;
     if(!Object.hasOwn(languages,value)||value===language) return;
@@ -1114,14 +1565,19 @@ window.addEventListener('hashchange',()=>{
   if(modal.open) modal.close();
   render();
   watchRoom();
+  if(location.hash==='#freigaben'||location.hash.startsWith('#freigaben/')) refreshShares(location.hash.split('/')[1]);
   window.scrollTo(0,0);
   main.focus({preventScroll:true});
 });
 window.addEventListener('storage',event=>{if(event.key===key) {state=load(localStorage);language=state.language;labDrafts=structuredClone(state.labDrafts);studioDrafts=structuredClone(state.studioDrafts);render();}});
 render();
+checkReminder();
+setInterval(checkReminder,60000);
+document.addEventListener('visibilitychange',checkReminder);
 watchRoom();
+if(location.hash==='#freigaben'||location.hash.startsWith('#freigaben/')) refreshShares(location.hash.split('/')[1]);
 if(roomSupported()) callRoom('/health').then(result=>{
   onlineRooms=result.available===true;
-  if(location.hash.startsWith('#challenge/')) render();
+  if(/^#(?:challenge\/|challenges$|profil$|galerie$)/.test(location.hash)) render();
 }).catch(()=>{});
 

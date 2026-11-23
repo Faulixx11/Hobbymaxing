@@ -1,7 +1,9 @@
 import {byHobby,quests,challenges,hobbies,journeys} from './catalog.mjs?v=06';
-import {monday,completed,unlocks,nextQuest,localDate,initial,validDay,validShare,rankId,rebuildEntries} from './state.mjs?v=06';
+import {monday,completed,unlocks,nextQuest,localDate,initial,validDay,validShare,rankId,rebuildEntries} from './state.mjs?v=08';
 import {experiments} from './learning.mjs?v=06';
 import {studios} from './studios.mjs';
+import {budgetLabel,cleanExpedition,mergeExpedition} from './expedition.mjs';
+import {practiceStudios,sanitizePracticeDraft} from './expedition-studios.mjs';
 
 export const languages = {
   en:{name:'Englisch',locale:'en-GB',pairs:[['Hi!','Hallo!'],['Good morning!','Guten Morgen!'],['What’s your name?','Wie heißt du?'],['My name is Ana.','Ich heiße Ana.'],['Nice to meet you.','Freut mich.']]},
@@ -76,13 +78,14 @@ export function questMatches(hobby,quest,filters,state) {
     && (!filters.place||place===filters.place)
     && (!filters.gear||gear===filters.gear)
     && (!filters.time||quest.minutes<=Number(filters.time))
-    && (!filters.stage||quest.type===filters.stage);
+    && (!filters.stage||quest.type===filters.stage)
+    && (!filters.cost||budgetLabel(quest)===filters.cost);
 }
 export function recommend(state,filters={}) {
   const options=hobbies.flatMap(hobby=>{
     const pref=state.preferences[hobby.id];
     return hobby.quests.filter(quest=>{
-      return questMatches(hobby,quest,filters,state);
+      return !state.expedition?.paused.includes(hobby.id)&&questMatches(hobby,quest,filters,state);
     }).map(quest=>{
       const done=completed(state,quest.id);
       const last=done&&state.entries.find(entry=>entry.quest===quest.id);
@@ -106,23 +109,28 @@ const nonfuture=value=>validDay(value)&&value>='2020-01-01'&&value<=localDate();
 const safeId=value=>str(value,50)&&/^[a-f0-9-]{8,50}$/i.test(value);
 
 export function profileBackup(state) {
-  const {name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}=state;
-  return JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}},null,2);
+  const {name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints,expedition,practiceDrafts}=state;
+  return JSON.stringify({format:'hobbymaxing-profile',version:3,profile:{name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints,expedition,practiceDrafts}},null,2);
 }
 export function parseBackup(text) {
   if(text.length>1000000) return null;
   try {
     const file=JSON.parse(text);
     const profile=file.profile;
-    if(file.format!=='hobbymaxing-profile'||![1,2].includes(file.version)||!obj(profile)||!str(profile.name,28)||!Array.isArray(profile.entries)||!Array.isArray(profile.active)) return null;
+    if(file.format!=='hobbymaxing-profile'||![1,2,3].includes(file.version)||!obj(profile)||!str(profile.name,28)||!Array.isArray(profile.entries)||!Array.isArray(profile.active)) return null;
     const restored=initial();
+    restored.expedition=cleanExpedition(profile.expedition);
+    for(const id of Object.keys(practiceStudios)) {
+      const draft=sanitizePracticeDraft(id,profile.practiceDrafts?.[id]);
+      if(draft!==undefined&&draft!==null) restored.practiceDrafts[id]=draft;
+    }
     restored.name=profile.name;
     restored.playerId=safeId(profile.playerId)?profile.playerId:'';
     restored.active=profile.active.filter(id=>Object.hasOwn(byHobby,id));
     restored.entries=profile.entries.filter(entry=>{
       const quest=entry&&quests[entry.quest];
       return quest&&safeId(entry.id)&&nonfuture(entry.day)&&entry.week===monday(entry.day)&&str(entry.time,30)&&Number.isInteger(entry.version)&&entry.version>0&&str(entry.condition,100)&&str(entry.result,160)&&str(entry.note,420)&&str(entry.invite,42)&&[0,quest.xp].includes(entry.xp)&&(quest.max?Number.isInteger(entry.score)&&entry.score>=0&&entry.score<=quest.max:entry.score===null);
-    }).map(entry=>({id:entry.id,quest:entry.quest,day:entry.day,week:entry.week,time:entry.time,version:entry.version,condition:entry.condition,result:entry.result,note:entry.note,confidence:entry.confidence==='retry'?'retry':entry.confidence==='ready'?'ready':'',invite:entry.invite,xp:entry.xp,score:entry.score,previous:Number.isInteger(entry.previous)?entry.previous:null,best:Number.isInteger(entry.best)?entry.best:null}));
+    }).map(entry=>({id:entry.id,quest:entry.quest,day:entry.day,week:entry.week,time:entry.time,version:entry.version,condition:entry.condition,result:entry.result,note:entry.note,confidence:entry.confidence==='retry'?'retry':entry.confidence==='ready'?'ready':'',invite:entry.invite,xp:entry.xp,score:entry.score,verified:quests[entry.quest].stage===4&&entry.verified===true,previous:Number.isInteger(entry.previous)?entry.previous:null,best:Number.isInteger(entry.best)?entry.best:null}));
     for(const [id,value] of Object.entries(obj(profile.practice)?profile.practice:{})) {
       const validId=id.startsWith('quiz-')&&Object.hasOwn(byHobby,id.slice(5))||['lab-start','lab-steuern','lab-sammeln','studio-schach','studio-beats','studio-pixelart'].includes(id);
       if(validId&&obj(value)&&nonfuture(value.day)&&value.xp===(id.startsWith('quiz-')?20:25)) restored.practice[id]={day:value.day,xp:value.xp};
@@ -199,6 +207,10 @@ export function mergeBackup(state,profile) {
   }
   state.journeys=[...new Set([...state.journeys,...profile.journeys])];
   if(emptyProfile) state.language=profile.language;
+  const current=cleanExpedition(state.expedition), incoming=cleanExpedition(profile.expedition);
+  state.expedition=mergeExpedition(emptyProfile?{...current,reading:incoming.reading,reducedMotion:incoming.reducedMotion}:current,incoming);
+  state.practiceDrafts={...profile.practiceDrafts,...state.practiceDrafts};
+  for(const day of profile.restDays) if(!state.restDays.some(other=>monday(other)===monday(day))) state.restDays.push(day);
   state.labDrafts={...profile.labDrafts,...state.labDrafts};
   state.studioDrafts={...profile.studioDrafts,...state.studioDrafts};
   for(const [id,days] of Object.entries(profile.checkpoints)) state.checkpoints[id]=[...new Set([...(state.checkpoints[id]||[]),...days])].sort();

@@ -2,6 +2,7 @@
 export const resources = {
   scratch:[
     [1,'Video-Reihe: Erste Schritte in Scratch','Coding for Tomorrow · Deutsch','https://coding-for-tomorrow.de/konzepte/einfuehrung-in-scratch/'],
+    [2,'Starterprojekte zum Ausprobieren','Scratch Team · Englisch','https://scratch.mit.edu/help/starter_projects/'],
     [2,'Geschichten mit Ereignissen bauen','Scratch Team · YouTube · Englisch','https://www.youtube.com/watch?v=uv8mbL-MC58'],
     [3,'Ein Fangspiel programmieren','Scratch Team · YouTube · Englisch','https://www.youtube.com/watch?v=7NN5v2wSL4U'],
     [4,'Spieldesign vertiefen','Scratch Foundation · Englisch','https://www.scratchfoundation.org/learn/learning-library/levelup-games']
@@ -16,6 +17,7 @@ export const resources = {
     [3,'Spielregeln und Punkte','Deutscher Tennis Bund · Deutsch','https://www.tennis.de/lernen/grundlagen/regeln-und-punkte.html']
   ],
   fotografie:[
+    [1,'Medienwerkstatt der Berliner Zentral- und Landesbibliothek','ZLB · Deutsch · Vor Ort','https://www.zlb.de/medienwerkstatt/'],
     [1,'Ein Foto bewusst gestalten','Nikon · Englisch','https://www.nikonusa.com/learn-and-explore/c/tips-and-techniques/composing-photographs'],
     [2,'Komposition und Blickführung','Nikon · Englisch','https://www.nikonusa.com/learn-and-explore/c/ideas-and-inspiration/the-composition-triangle']
   ],
@@ -41,6 +43,17 @@ export const resources = {
   '3d':[[1,'Erste Schritte in Blender','Blender Studio · Englisch','https://studio.blender.org/training/blender-fundamentals-45-lts/chapter/blender_4-5_lts_first-steps/'],[2,'3D-Modellieren vertiefen','Blender Education · Englisch','https://education.blender.org/blender_tutorials/modeling/']],
   beats:[[1,'Spielerischer Einstieg ins Beatmaking','Ableton · Englisch','https://learningmusic.ableton.com/make-beats/make-beats']]
 };
+
+export const reviewedResources = {
+  'https://www.nabu.de/so-funktioniert-die-teilnahme': ['Deutsch','Einstieg','Gleichzeitig sichtbare Vögel einer Art zählen.'],
+  'https://www.rhs.org.uk/herbs/containers': ['Englisch','Einstieg','Licht und Pflanzgefäß für ein Topfkraut auswählen.'],
+  'https://scratch.mit.edu/help/starter_projects/': ['Englisch','Training','Ein vorhandenes Scratch-Projekt öffnen und gezielt verändern.'],
+  'https://learningmusic.ableton.com/make-beats/make-beats': ['Englisch','Einstieg','Kick, Snare und Hi-Hat im Raster platzieren.'],
+  'https://kinder.tennis.de/faq-items/voruebungen-zur-ballkontrolle': ['Deutsch','Einstieg','Ball und Schläger einzeln kontrollieren.'],
+  'https://www.bfv.de/bildung-und-foerderung/ausbildung-und-schulungen/bfv-coaching-zone/technik/das-passspiel-zuhause-verbessern': ['Deutsch','Einstieg','Einen flachen Pass mit wiederholbarem Ziel üben.'],
+  'https://www.zlb.de/medienwerkstatt/': ['Deutsch','Einstieg','Den betreuten Einstieg in Audio-, Foto- und Videoproduktion finden.']
+};
+export const resourcesReviewedOn='2026-11-23';
 
 export function videoSearchUrl(hobbyName,questTitle) {
   const query=[hobbyName,questTitle,'Tutorial Schritt für Schritt'].filter(Boolean).join(' ');
