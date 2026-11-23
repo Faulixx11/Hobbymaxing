@@ -100,6 +100,14 @@ export function featuredChallenge(date=localDate()) {
   return challenges[((elapsed%challenges.length)+challenges.length)%challenges.length];
 }
 
+export function weeklyRecap(state, week=monday()) {
+  const entries=state.entries.filter(entry=>entry.week===week).slice().sort((a,b)=>a.time.localeCompare(b.time));
+  const days=[...new Set(entries.map(entry=>entry.day))].sort();
+  const hobbyIds=[...new Set(entries.map(entry=>quests[entry.quest]?.hobby).filter(Boolean))];
+  const skills=[...new Set(entries.map(entry=>quests[entry.quest]?.skill).filter(Boolean))];
+  return {week,days:days.length,quests:entries.length,xp:entries.reduce((sum,entry)=>sum+entry.xp,0),hobbies:hobbyIds.map(id=>byHobby[id].name),skills,projects:entries.filter(entry=>quests[entry.quest]?.stage===4).map(entry=>({title:quests[entry.quest].title,result:entry.result})),entries};
+}
+
 const str=(value,limit)=>typeof value==='string'&&value.length<=limit;
 const obj=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const nonfuture=value=>validDay(value)&&value>='2020-01-01'&&value<=localDate();

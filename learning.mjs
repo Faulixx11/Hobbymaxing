@@ -4,6 +4,24 @@ import {resources} from './resources.mjs';
 import {nextQuest} from './state.mjs?v=06';
 
 export const stages = ['Einstieg','Training','Meilenstein','Meisterstück'];
+export const stageGuidance = [
+  'Lerne die Grundidee kennen und probiere eine sichere, kleine Übung aus.',
+  'Wiederhole die Technik und verändere jeweils nur eine Sache.',
+  'Wende deine Fähigkeiten unter selbst gewählten Bedingungen an.',
+  'Verbinde die gelernten Schritte zu einem eigenen Ergebnis.'
+];
+
+export function learningRoute(state,hobby) {
+  const next=nextQuest(state,hobby);
+  const stagesWithProgress=stages.map((name,index)=>{
+    const number=index+1;
+    const questsForStage=hobby.quests.filter(quest=>quest.stage===number);
+    const finished=questsForStage.filter(quest=>state.entries.some(entry=>entry.quest===quest.id)).length;
+    const available=questsForStage.some(quest=>!quest.requires.length||quest.requires.every(id=>state.entries.some(entry=>entry.quest===id))||quest.any&&quest.requires.some(id=>state.entries.some(entry=>entry.quest===id)));
+    return {name,number,guidance:stageGuidance[index],quests:questsForStage,finished,total:questsForStage.length,status:finished===questsForStage.length?'done':available?'open':'locked'};
+  });
+  return {stages:stagesWithProgress,next,completed:hobby.quests.filter(quest=>state.entries.some(entry=>entry.quest===quest.id)).length,total:hobby.quests.length};
+}
 
 export function questionOptions(id) {
   const lesson=lessons[id];
