@@ -106,8 +106,8 @@ const nonfuture=value=>validDay(value)&&value>='2020-01-01'&&value<=localDate();
 const safeId=value=>str(value,50)&&/^[a-f0-9-]{8,50}$/i.test(value);
 
 export function profileBackup(state) {
-  const {name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}=state;
-  return JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name,playerId,active,entries,practice,practiceDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}},null,2);
+  const {name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}=state;
+  return JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name,playerId,active,entries,practice,practiceDays,restDays,preferences,stepChecks,goals,plans,journeys,invites,scores,language,labDrafts,studioDrafts,checkpoints}},null,2);
 }
 export function parseBackup(text) {
   if(text.length>1000000) return null;
@@ -128,6 +128,7 @@ export function parseBackup(text) {
       if(validId&&obj(value)&&nonfuture(value.day)&&value.xp===(id.startsWith('quiz-')?20:25)) restored.practice[id]={day:value.day,xp:value.xp};
     }
     for(const day of Object.keys(obj(profile.practiceDays)?profile.practiceDays:{})) if(nonfuture(day)) restored.practiceDays[day]=true;
+    for(const day of Array.isArray(profile.restDays)?profile.restDays:[]) if(nonfuture(day)&&!restored.restDays.some(existing=>monday(existing)===monday(day))) restored.restDays.push(day);
     for(const [id,pref] of Object.entries(obj(profile.preferences)?profile.preferences:{})) {
       if(!Object.hasOwn(byHobby,id)||!obj(pref)) continue;
       restored.preferences[id]=Object.fromEntries(Object.entries(preferences).map(([field,choices])=>[field,choices.some(([value])=>value===pref[field])?pref[field]:choices[0][0]]));

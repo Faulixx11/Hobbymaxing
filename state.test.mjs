@@ -108,6 +108,15 @@ test('one voluntary weekly rest day preserves an active daily streak without ear
   assert.equal(takeRestDay(initial(),'2026-11-23'),false);
 });
 
+test('profile backups preserve weekly rest days while older backups still load',()=>{
+  const state=initial();
+  state.restDays=['2026-11-23'];
+  const restored=parseBackup(profileBackup(state));
+  assert.deepEqual(restored.restDays,['2026-11-23']);
+  const older=parseBackup(JSON.stringify({format:'hobbymaxing-profile',version:2,profile:{name:'Alt',active:[],entries:[]}}));
+  assert.deepEqual(older.restDays,[]);
+});
+
 test('the block lab reports failed sequences and verifies all three goals',()=>{
   assert.equal(runBlocks(['right','flag'],experiments[0]).pass,false);
   assert.equal(runBlocks(['flag','right'],experiments[0]).pass,true);
