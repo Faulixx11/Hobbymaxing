@@ -2,7 +2,7 @@
 
 Hobbymaxing ist eine deutschsprachige Web-Beta für Hobbys, die du im echten Leben ausprobierst. Wähle ein Hobby, folge konkreten Quests und halte fest, was du erlebt und gelernt hast.
 
-[Beta öffnen](https://faulixx11.github.io/Hobbymaxing/)
+[Beta öffnen](https://faulixx11.github.io/Hobbymaxing/) · [Neues HobbyMaxing Studio](https://faulixx11.github.io/Hobbymaxing/studio/)
 
 ## Was du ausprobieren kannst
 
