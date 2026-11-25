@@ -1,6 +1,6 @@
 import {action,icon,link,esc,pageHead,empty,dateLabel,localDay,normalize,uid} from './ui.js';
 import {allHobbies,hobbyFor,hobbyOptions,field,area,selectMenu,recommendations} from './pages.js';
-import {award,markActivity} from './state.js';
+import {award} from './state.js';
 
 export const quests = [
   {id:'photo-light',type:'Einstieg',title:'Drei Richtungen, ein Motiv',hobby:'fotografie',minutes:16,level:'Einstieg',goal:'Erkenne, wie die Lichtrichtung Oberfläche und Form betont.',steps:['Suche einen Gegenstand mit Struktur und nutze ein Fenster als Lichtquelle.','Fotografiere das Motiv mit Licht von vorne, von der Seite und von hinten.','Vergleiche die Schatten und notiere, wo die Struktur am deutlichsten sichtbar ist.'],xp:20},
@@ -63,6 +63,18 @@ function shifted(date,days) {
   return localDay(d);
 }
 const monday = value => shifted(value,-((new Date(value+'T12:00:00').getDay()+6)%7));
+export const weekKey = (date = new Date()) => monday(localDay(date));
+export function refreshWeeks(state,date = new Date()) {
+  const week = weekKey(date);
+  let changed = false;
+  for (const goal of state.goals) {
+    if (goal.week === week) continue;
+    if (goal.week) goal.count = 0;
+    goal.week = week;
+    changed = true;
+  }
+  return changed;
+}
 export function calendarShift(date,view,direction) {
   if (view !== 'month') return shifted(date,direction*(view==='week'?7:1));
   const next = new Date(date+'T12:00:00');
@@ -111,7 +123,4 @@ export function upsert(list,data) {
   const index = list.findIndex(item=>item.id===data.id);
   if (index >= 0) list[index] = data;
   else list.push({...data,id:uid()});
-}
-export function logPlanActivity(state,title,kind,hobby) {
-  markActivity(state,{title,kind,hobby});
 }

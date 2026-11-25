@@ -3,7 +3,7 @@ import {icon,esc,action,link,brand,empty,pageHead,route,readRoute,download,local
 import {freshState,sanitize,load,save as persist,award} from './state.js';
 import {mountLesson,reviewPage} from './learning.js';
 import {allHobbies,hobbyFor,featured,landing,explore,explorerResults,filteredHobbies,hobbyDetail,lessonUnlocked,mine,dashboard,learnPage,onboarding,profilePage,settingsPage,statsPage,field,area,selectMenu} from './pages.js';
-import {quests,templates,questsPage,goalForm,finishQuest,challengesPage,challengeForm,projectsPage,projectForm,completeProject,calendarShift,calendarPage,eventForm,journalPage,journalEntries,journalForm,journalImage,taskList,upsert} from './planner.js';
+import {quests,templates,questsPage,goalForm,finishQuest,challengesPage,challengeForm,projectsPage,projectForm,completeProject,calendarShift,calendarPage,eventForm,journalPage,journalEntries,journalForm,journalImage,taskList,upsert,refreshWeeks,weekKey} from './planner.js';
 
 const app = document.querySelector('#app');
 const dialog = document.querySelector('#dialog');
@@ -94,6 +94,7 @@ const missing = () => empty('Diese Seite gibt es hier nicht','Öffne die Übersi
 
 async function render(changed = true) {
   const token = ++revision;
+  if (refreshWeeks(state)) save();
   if (typeof cleanup === 'function') cleanup();
   cleanup = undefined;
   applyTheme();
@@ -118,10 +119,7 @@ async function render(changed = true) {
         const module = await loadModule(world ? 'world' : 'studios',world ? 'world.css' : 'studios.css');
         if (token !== revision) return;
         if (world) {
-          main.innerHTML = pageHead('Deine Insel','HobbyWorld','Erkunde das Dorf, gestalte dein Zuhause und besuche die Stationen der Expedition.');
-          const content = document.createElement('div');
-          main.append(content);
-          cleanup = module.mountWorld(content,{state,save,go,notify});
+          cleanup = module.mountWorld(main,{state,save,go,notify});
         } else if (page === 'learn') main.innerHTML = learnPage(state,module.studios);
         else {
           const current = module.studios[id];
@@ -293,6 +291,7 @@ const actions = {
   'confirm-reset':()=>{state=freshState();onboardingDraft=undefined;saveAndRender('Lokale Studio-Daten zurückgesetzt');},
   'goal-new':id=>openDialog(id?'Wochenziel bearbeiten':'Wochenziel anlegen',goalForm(row('goals',id))),
   'goal-progress':id=>{
+    refreshWeeks(state);
     const goal=row('goals',id);
     if (goal && !goal.paused && goal.count<goal.target) {goal.count++;saveAndRender('Einheit gespeichert');}
   },
@@ -424,7 +423,8 @@ const submitForms = {
   goal:data=>{
     const old=currentRow(data,'goals');
     if (!val(data,'title')) return notify('Gib deinem Wochenziel einen Titel.');
-    upsert(state.goals,{id:old?.id,title:val(data,'title'),target:Number(data.get('target')),count:old?.count || 0,paused:data.has('paused')});
+    const target=Number(data.get('target'));
+    upsert(state.goals,{id:old?.id,title:val(data,'title'),target,count:Math.min(target,old?.count || 0),week:weekKey(),paused:data.has('paused')});
     saveAndRender('Wochenziel gespeichert');
   },
   challenge:data=>{

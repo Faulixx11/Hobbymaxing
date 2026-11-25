@@ -74,7 +74,7 @@ export function sanitize(value) {
     id:item.id,title:asText(item.title),day:asDate(item.day),hobby:asText(item.hobby,100),body:asText(item.body,8000),image:imageData(item.image)
   }),300);
   clean.goals = rows(value.goals,item => ({
-    id:item.id,title:asText(item.title),target:Math.max(1,asNumber(item.target,99)),count:asNumber(item.count,99),paused:item.paused === true
+    id:item.id,title:asText(item.title),target:Math.max(1,asNumber(item.target,99)),count:asNumber(item.count,99),week:asDate(item.week),paused:item.paused === true
   }));
   clean.challenges = rows(value.challenges,item => ({
     id:item.id,title:asText(item.title),day:asDate(item.day),tasks:tasks(item.tasks),paused:item.paused === true,done:item.done === true

@@ -19,6 +19,12 @@
 - Die Website ist auf Deutsch. Die Auslagerung sämtlicher Oberflächentexte, eine systematische WCAG-Prüfung, die Prüfung weiterer Browser und assistiver Technologien sowie fachliche Zweitsichtung aller Inhalte sind offen.
 - Die bestehenden HobbyMaxing-Speicherstände der früheren Beta sind über die Beta erreichbar. Das Studio importiert sein eigenes JSON-Sicherungsformat; eine Migration der älteren Formate ist offen.
 
+## Durchgeführte Prüfungen
+
+- Katalogschema, Referenzen, Antwortauswertung, Wiederholungsintervalle, XP-Eindeutigkeit, Kalender und Sicherungsvalidierung über Node-Tests.
+- Interaktionen der Studios und der Insel in separaten Tests. Darunter legale Schachzüge und Sonderzüge, isolierte Vorschau für HTML, CSS und JavaScript, Kamera, Sprache, Musik, Sudoku und Astronomie.
+- Öffentliche GitHub-Pages-Adresse und Desktop- sowie Mobilansicht im Browser. Mini-Lektion, Hobby-Suche, Lernpfad, Schachstudio, HobbyWorld und mobile Navigation wurden dort geöffnet beziehungsweise bedient.
+
 ## Technische Entscheidung
 
 HobbyMaxing Studio setzt die vorhandene statische, serverlose Architektur mit nativen JavaScript-Modulen fort. Dateien und Routen funktionieren ohne Bundler oder Fremdskripte innerhalb des GitHub-Pages-Verzeichnisses `studio/`.

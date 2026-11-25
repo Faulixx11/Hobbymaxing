@@ -4,7 +4,7 @@ import {categories,hobbies} from './content.js';
 import {freshState,sanitize,attempt,mastery,recordLesson} from './state.js';
 import {verifyStep,orderSeed} from './learning.js';
 import {filteredHobbies,studioFor} from './pages.js';
-import {calendarShift,eventsOn,finishQuest,quests,completeProject} from './planner.js';
+import {calendarShift,eventsOn,finishQuest,quests,completeProject,refreshWeeks} from './planner.js';
 import {studios} from './studios.js';
 
 test('every catalog hobby has an individual, valid starter path',()=>{
@@ -80,6 +80,15 @@ test('calendar monthly navigation and weekly recurrence handle dates',()=>{
   const events=[{day:'2026-03-24',time:'10:00',repeat:true}];
   assert.equal(eventsOn(events,'2026-03-31').length,1);
   assert.equal(eventsOn(events,'2026-03-25').length,0);
+});
+
+test('weekly goals roll over only at the start of the next local week',()=>{
+  const state=freshState();
+  state.goals=[{id:'practice',title:'Üben',target:3,count:2,week:'2026-11-23',paused:false}];
+  assert.equal(refreshWeeks(state,new Date(2026,10,29,12)),false);
+  assert.equal(state.goals[0].count,2);
+  assert.equal(refreshWeeks(state,new Date(2026,10,30,12)),true);
+  assert.equal(state.goals[0].count,0);
 });
 
 test('backup validation strips dangerous keys and invalid data',()=>{
